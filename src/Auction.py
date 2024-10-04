@@ -54,11 +54,12 @@ class Auction:
             CTRs.append(true_CTR[item])
         bids = np.array(bids)
         CTRs = np.array(CTRs)
-
         # Now we have bids, we need to somehow allocate slots
         # "second_prices" tell us how much lower the winner could have gone without changing the outcome
         winners, prices, second_prices = self.allocation.allocate(bids, num_slots)
         # print(winners)
+        if len(second_prices) == 0:
+            second_prices = prices
         # Bidders only obtain value when they get their outcome
         # Either P(view), P(click | view, ad), P(conversion | click, view, ad)
         # For now, look at P(click | ad) * P(view)

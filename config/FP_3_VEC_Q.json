@@ -1,0 +1,34 @@
+{
+    "random_seed": 1,
+    "num_runs": 1,
+    "num_iter" : 5,
+    "rounds_per_iter": 1,
+    "num_participants_per_round": 3,
+    "embedding_size": 1,
+    "embedding_var": 1.0,
+    "obs_embedding_size": 4,
+    "plot_last_iter": 1000,
+    "allocation": "FirstPrice",
+    "agents": [ {
+      "name": "Vector Q Learnt",
+      "num_copies": 3,
+      "num_items": 1,
+        "allocator": {
+          "type": "FixedAllocator",
+          "kwargs": {}
+        },
+        "bidder": {
+          "type": "VectorQBidder",
+          "kwargs": {
+            "value": 20,
+            "epsilon": 0.25,
+            "decay": 0.000002,
+            "alpha": 0.001,
+            "gamma": 0.9999
+          }
+        }
+      }
+    ],
+    "output_dir": "results/FP_3_Vector_Q_test/"
+  }
+  

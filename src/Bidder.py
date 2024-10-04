@@ -25,6 +25,95 @@ class Bidder:
         pass
 
 
+
+class VectorQBidder(Bidder):
+    """ A bidder that uses Q-learning to bid """
+    def __init__(self, rng, value, epsilon, decay, alpha, gamma):
+        super(VectorQBidder, self).__init__(rng)
+        self.truthful = True
+        # assume value is 100 for the naive example
+        # the bid is integer
+        self.value = value
+        self.q_table = torch.zeros((self.value), dtype=float)#torch.randint(0, self.value, size=(self.value, self.value), dtype=float)
+        self.epsilon = epsilon
+        self.decay = decay # 0.000002 #0.9999999
+        self.alpha = alpha #0.001
+        self.gamma = gamma #0.9999
+        self.state = 0
+        self.action = 0
+        self.next_state = 0
+
+
+
+    def bid(self, value, context, estimated_CTR=1):
+        assert(estimated_CTR == 1)
+        coin_flip = np.random.rand(1)
+        if coin_flip >= self.epsilon:
+            # exploit
+            self.action = np.random.choice(torch.where(self.q_table == torch.max(self.q_table))[0])
+            self.next_state = self.action
+        else:
+            # explore
+            self.action = np.random.randint(self.value)
+            self.next_state = self.action
+        # print(coin_flip, self.epsilon, self.action)
+        return self.action
+
+
+    def update(self, contexts, values, bids, prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
+        # print("outcomesoutcomes", outcomes)
+        reward = outcomes[-1] * (values[-1] - prices[-1])
+        self.q_table[self.action] += self.alpha * (reward + self.gamma * torch.max(self.q_table) - self.q_table[self.action])
+        self.state = self.next_state
+        # print(self.q_table[self.state, self.action])
+        # print(reward, self.state, self.action)
+        self.epsilon *= np.exp(-self.decay) # exploit more and more
+
+class TabularQBidder(Bidder):
+    """ A bidder that uses Q-learning to bid """
+    def __init__(self, rng, value, epsilon, decay, alpha, gamma):
+        super(TabularQBidder, self).__init__(rng)
+        self.truthful = True
+        # assume value is 100 for the naive example
+        # the bid is integer
+        self.value = 100
+        self.q_table = torch.zeros((self.value, self.value), dtype=float)#torch.randint(0, self.value, size=(self.value, self.value), dtype=float)
+        self.epsilon = 0.25
+        self.decay = 0.00002 #0.9999999
+        self.alpha = 0.05
+        self.gamma = 0.99
+        self.state = 0
+        self.action = 0
+        self.next_state = 0
+
+
+
+    def bid(self, value, context, estimated_CTR=1):
+        assert(estimated_CTR == 1)
+        coin_flip = np.random.rand(1)
+        if coin_flip >= self.epsilon:
+            # exploit
+            self.action = np.random.choice(torch.where(self.q_table[self.state] == torch.max(self.q_table[self.state]))[0])
+            self.next_state = self.action
+        else:
+            # explore
+            self.action = np.random.randint(self.value)
+            self.next_state = self.action
+        # print(coin_flip, self.epsilon, self.action)
+        return self.action
+
+
+    def update(self, contexts, values, bids, prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
+        # print("outcomesoutcomes", outcomes)
+        reward = outcomes[-1] * (values[-1] - prices[-1])
+        self.q_table[self.state,self.action] += self.alpha * (reward + self.gamma * torch.max(self.q_table[self.next_state]) - self.q_table[self.state,self.action])
+        self.state = self.next_state
+        # print(self.q_table[self.state, self.action])
+        # print(reward, self.state, self.action)
+        self.epsilon *= np.exp(-self.decay) # exploit more and more
+        print(self.epsilon)
+
+
 class TruthfulBidder(Bidder):
     """ A bidder that bids truthfully """
     def __init__(self, rng):
@@ -364,7 +453,7 @@ class PolicyLearningBidder(Bidder):
         bid *= gamma.detach().item() if self.model_initialised else gamma
         self.gammas.append(gamma)
         self.propensities.append(propensity)
-        return bid
+        return int(bid)
 
     def update(self, contexts, values, bids, prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
         # Compute net utility

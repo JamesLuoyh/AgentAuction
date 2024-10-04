@@ -1,0 +1,28 @@
+{
+    "random_seed": 1,
+    "num_runs": 1,
+    "num_iter" : 200000,
+    "rounds_per_iter": 1,
+    "num_participants_per_round": 2,
+    "embedding_size": 1,
+    "embedding_var": 1.0,
+    "obs_embedding_size": 4,
+    "plot_last_iter": 1000,
+    "allocation": "SecondPrice",
+    "agents": [ {
+      "name": "Vector Q Learnt",
+      "num_copies": 2,
+      "num_items": 1,
+        "allocator": {
+          "type": "FixedAllocator",
+          "kwargs": {}
+        },
+        "bidder": {
+          "type": "VectorQBidder",
+          "kwargs": {}
+        }
+      }
+    ],
+    "output_dir": "results/SP_Vector_2Q_value_20/"
+  }
+  

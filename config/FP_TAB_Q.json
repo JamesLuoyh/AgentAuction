@@ -1,16 +1,15 @@
 {
-    "random_seed": 0,
+    "random_seed": 1,
     "num_runs": 1,
-    "num_iter" : 200,
-    "rounds_per_iter": 10000,
-    "plot_last_iter": 200,
+    "num_iter" : 100000,
+    "rounds_per_iter": 1,
     "num_participants_per_round": 2,
     "embedding_size": 1,
     "embedding_var": 1.0,
     "obs_embedding_size": 4,
     "allocation": "FirstPrice",
     "agents": [ {
-      "name": "Truthful Learnt",
+      "name": "Tabular Q Learnt",
       "num_copies": 2,
       "num_items": 1,
         "allocator": {
@@ -18,15 +17,11 @@
           "kwargs": {}
         },
         "bidder": {
-          "type": "PolicyLearningBidder",
-          "kwargs": {
-            "gamma_sigma":  0.02,
-            "init_gamma": 1.0,
-            "loss": "\"PPO\""
-          }
+          "type": "TabularQBidder",
+          "kwargs": {}
         }
       }
     ],
-    "output_dir": "results/FP_Fixed_10000/"
+    "output_dir": "results/FP_Tabular_2Q_value_100/"
   }
   

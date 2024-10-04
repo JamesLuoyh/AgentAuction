@@ -12,15 +12,3 @@ from Impression import ImpressionOpportunity
 
 import Bidder
 
-class QBidder(Bidder):
-    """ A bidder that uses Q-learning to bid """
-    def __init__(self, rng):
-        super(QBidder, self).__init__(rng)
-        self.truthful = False
-
-    def bid(self, value, context, estimated_CTR=1):
-        assert(estimated_CTR == 1)
-        
-        return value * estimated_CTR
-
-

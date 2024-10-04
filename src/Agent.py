@@ -25,6 +25,7 @@ class Agent:
         self.bidder = bidder
 
         self.memory = memory
+        self.total_bid = .0 # TODO: Instead of sum, can return a list for evaluating the mean and variance
 
     def select_item(self, context):
         # Estimate CTR for all items
@@ -63,7 +64,7 @@ class Agent:
                                                second_price=0.0,
                                                outcome=0,
                                                won=False))
-
+        self.total_bid += bid
         return bid, best_item
 
     def charge(self, price, second_price, outcome):
@@ -71,6 +72,7 @@ class Agent:
         last_value = self.logs[-1].value * outcome
         self.net_utility += (last_value - price)
         self.gross_utility += last_value
+        # print('charge', self.logs[-1])
 
     def set_price(self, price):
         self.logs[-1].set_price(price)
@@ -90,6 +92,7 @@ class Agent:
         self.allocator.update(contexts[won_mask], items[won_mask], outcomes[won_mask], iteration, plot, figsize, fontsize, self.name)
 
         # Update bidding model with all data
+        print('agents', outcomes)
         self.bidder.update(contexts, values, bids, prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, self.name)
 
     def get_allocation_regret(self):
@@ -119,6 +122,7 @@ class Agent:
     def clear_utility(self):
         self.net_utility = .0
         self.gross_utility = .0
+        self.total_bid = .0
 
     def clear_logs(self):
         if not self.memory:
