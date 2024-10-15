@@ -24,7 +24,79 @@ class Bidder:
     def clear_logs(self, memory):
         pass
 
+class NoisyBidder(Bidder):
+    """ A bidder that uses Q-learning to bid """
+    def __init__(self, rng, value):
+        super(NoisyBidder, self).__init__(rng)
+        self.truthful = True
+        # assume value is 100 for the naive example
+        # the bid is integer
+        self.value = value
+        self.action = np.random.randint(value)
+        self.epsilon = 0.3
+        self.decay = 0.00002
+        
 
+
+
+    def bid(self, value, context, estimated_CTR=1):
+        assert(estimated_CTR == 1)
+        
+        # print(coin_flip, self.epsilon, self.action)
+        return int(np.random.normal(self.value-2, 1, 1))
+
+
+    def update(self, contexts, values, bids, prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
+        # print("outcomesoutcomes", outcomes)
+        # coin_flip = np.random.rand(1)
+        # if coin_flip >= self.epsilon:
+        #     # exploit
+        #     return
+        # # explore
+        # reward = outcomes[-1] * (values[-1] - prices[-1])
+        # if reward == 0:
+        #     self.action += 1
+        # else:
+        #     self.action = int(1 * self.action / 2)
+        return
+        
+
+class HueristicBidder(Bidder):
+    """ A bidder that uses Q-learning to bid """
+    def __init__(self, rng, value):
+        super(HueristicBidder, self).__init__(rng)
+        self.truthful = True
+        # assume value is 100 for the naive example
+        # the bid is integer
+        self.value = value
+        self.action = 0 # np.random.randint(value)
+        self.epsilon = 0.3
+        self.decay = 0.00002
+        
+
+
+
+    def bid(self, value, context, estimated_CTR=1):
+        assert(estimated_CTR == 1)
+        
+        # print(coin_flip, self.epsilon, self.action)
+        return self.action
+
+
+    def update(self, contexts, values, bids, prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
+        # print("outcomesoutcomes", outcomes)
+        # coin_flip = np.random.rand(1)
+        # if coin_flip >= self.epsilon:
+        #     # exploit
+        #     return
+        # # explore
+        # reward = outcomes[-1] * (values[-1] - prices[-1])
+        # if reward == 0:
+        #     self.action += 1
+        # else:
+        #     self.action = int(1 * self.action / 2)
+        self.action = self.value - 1 - self.action
+        
 
 class VectorQBidder(Bidder):
     """ A bidder that uses Q-learning to bid """
@@ -42,15 +114,18 @@ class VectorQBidder(Bidder):
         self.state = 0
         self.action = 0
         self.next_state = 0
+        self.rounds = 0
+        
 
 
 
     def bid(self, value, context, estimated_CTR=1):
         assert(estimated_CTR == 1)
         coin_flip = np.random.rand(1)
+        self.argmax = np.random.choice(torch.where(self.q_table == torch.max(self.q_table))[0])
         if coin_flip >= self.epsilon:
             # exploit
-            self.action = np.random.choice(torch.where(self.q_table == torch.max(self.q_table))[0])
+            self.action = self.argmax
             self.next_state = self.action
         else:
             # explore
@@ -62,7 +137,7 @@ class VectorQBidder(Bidder):
 
     def update(self, contexts, values, bids, prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
         # print("outcomesoutcomes", outcomes)
-        reward = outcomes[-1] * (values[-1] - prices[-1])
+        reward = outcomes[-1] * (values[-1] - prices[-1]) - 0.2
         self.q_table[self.action] += self.alpha * (reward + self.gamma * torch.max(self.q_table) - self.q_table[self.action])
         self.state = self.next_state
         # print(self.q_table[self.state, self.action])

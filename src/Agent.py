@@ -26,7 +26,7 @@ class Agent:
 
         self.memory = memory
         self.total_bid = .0 # TODO: Instead of sum, can return a list for evaluating the mean and variance
-
+        self.argmax = 0.0
     def select_item(self, context):
         # Estimate CTR for all items
         estim_CTRs = self.allocator.estimate_CTR(context)
@@ -65,6 +65,7 @@ class Agent:
                                                outcome=0,
                                                won=False))
         self.total_bid += bid
+        self.argmax += self.bidder.argmax
         return bid, best_item
 
     def charge(self, price, second_price, outcome):
@@ -123,6 +124,7 @@ class Agent:
         self.net_utility = .0
         self.gross_utility = .0
         self.total_bid = .0
+        self.argmax = 0
 
     def clear_logs(self):
         if not self.memory:

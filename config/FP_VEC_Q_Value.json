@@ -11,9 +11,8 @@
     "allocation": "FirstPrice",
     "agents": [ {
       "name": "Vector Q Learnt",
-      "num_copies": 2,
+      "num_copies": 1,
       "num_items": 1,
-      "value": 20,
         "allocator": {
           "type": "FixedAllocator",
           "kwargs": {}
@@ -28,8 +27,25 @@
                 "gamma": 0.99
             }
         }
-      }
+      },
+      {
+        "name": "Truthful Learnt",
+        "num_copies": 1,
+        "num_items": 1,
+          "allocator": {
+            "type": "FixedAllocator",
+            "kwargs": {}
+          },
+          "bidder": {
+            "type": "PolicyLearningBidder",
+            "kwargs": {
+              "gamma_sigma":  0.02,
+              "init_gamma": 1.0,
+              "loss": "\"PPO\""
+            }
+          }
+        }
     ],
-    "output_dir": "results/FP_2_Vector_Q_value_20_punishment/"
+    "output_dir": "results/FP_Vector_Q_Value_value_20/"
   }
   

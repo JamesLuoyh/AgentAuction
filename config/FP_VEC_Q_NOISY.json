@@ -3,7 +3,7 @@
     "num_runs": 1,
     "num_iter" : 100000,
     "rounds_per_iter": 1,
-    "num_participants_per_round": 2,
+    "num_participants_per_round": 3,
     "embedding_size": 1,
     "embedding_var": 1.0,
     "obs_embedding_size": 4,
@@ -13,7 +13,6 @@
       "name": "Vector Q Learnt",
       "num_copies": 2,
       "num_items": 1,
-      "value": 20,
         "allocator": {
           "type": "FixedAllocator",
           "kwargs": {}
@@ -28,8 +27,23 @@
                 "gamma": 0.99
             }
         }
-      }
+      },
+      {
+        "name": "Noisy Bidder",
+        "num_copies": 1,
+        "num_items": 1,
+          "allocator": {
+            "type": "FixedAllocator",
+            "kwargs": {}
+          },
+          "bidder": {
+            "type": "NoisyBidder",
+            "kwargs": {
+                  "value": 10
+              }
+          }
+        }
     ],
-    "output_dir": "results/FP_2_Vector_Q_value_20_punishment/"
+    "output_dir": "results/FP_2_Vector_Q_Noisy_value_20/"
   }
   

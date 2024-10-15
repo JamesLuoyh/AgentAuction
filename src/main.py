@@ -40,6 +40,7 @@ def parse_config(path):
     # Technical parameters for distribution of latent embeddings
     embedding_size = config['embedding_size']
     plot_last_iter = config.get('plot_last_iter',config['num_iter'])
+    avg_over = config.get('avg_over',1)
     embedding_var = config['embedding_var']
     obs_embedding_size = config['obs_embedding_size']
 
@@ -64,7 +65,7 @@ def parse_config(path):
         for agent_config in agent_configs
     }
     agents2item_values = {
-        agent_config['name']: 20 * np.ones(agent_config['num_items']) #rng.lognormal(0.1, 0.2, agent_config['num_items'])
+        agent_config['name']: agent_config['value'] * np.ones(agent_config['num_items']) #rng.lognormal(0.1, 0.2, agent_config['num_items'])
         for agent_config in agent_configs
     }
 
@@ -72,7 +73,7 @@ def parse_config(path):
     for agent, items in agents2items.items():
         agents2items[agent] = np.hstack((items, - 3.0 - 1.0 * rng.random((items.shape[0], 1))))
 
-    return rng, config, agent_configs, agents2items, agents2item_values, num_runs, max_slots, embedding_size, embedding_var, obs_embedding_size, plot_last_iter
+    return rng, config, agent_configs, agents2items, agents2item_values, num_runs, max_slots, embedding_size, embedding_var, obs_embedding_size, plot_last_iter, avg_over
 
 
 def instantiate_agents(rng, agent_configs, agents2item_values, agents2items):
@@ -140,6 +141,7 @@ def simulation_run():
             agent2CTR_RMSE[agent.name].append(agent.get_CTR_RMSE())
             agent2CTR_bias[agent.name].append(agent.get_CTR_bias())
             agent2bid[agent.name].append(agent.total_bid)
+            agent2argmax[agent.name].append(agent.argmax)
             if isinstance(agent.bidder, PolicyLearningBidder) or isinstance(agent.bidder, DoublyRobustBidder):
                 agent2gamma[agent.name].append(torch.mean(torch.Tensor(agent.bidder.gammas)).detach().item())
             elif not agent.bidder.truthful:
@@ -162,7 +164,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Parse configuration file
-    rng, config, agent_configs, agents2items, agents2item_values, num_runs, max_slots, embedding_size, embedding_var, obs_embedding_size, plot_last_iter = parse_config(args.config)
+    rng, config, agent_configs, agents2items, agents2item_values, num_runs, max_slots, embedding_size, embedding_var, obs_embedding_size, plot_last_iter, avg_over = parse_config(args.config)
     #  = 1#00
     # Plotting config
     FIGSIZE = (8, 5)
@@ -181,6 +183,7 @@ if __name__ == '__main__':
     run2agent2CTR_bias = {}
     run2agent2gamma = {}
     run2agent2bid = {}
+    run2agent2argmax = {}
 
     run2auction_revenue = {}
 
@@ -203,6 +206,7 @@ if __name__ == '__main__':
         agent2CTR_bias = defaultdict(list)
         agent2gamma = defaultdict(list)
         agent2bid = defaultdict(list)
+        agent2argmax = defaultdict(list)
         auction_revenue = []
 
         # Run simulation (with global parameters -- fine for the purposes of this script)
@@ -223,6 +227,7 @@ if __name__ == '__main__':
 
         run2auction_revenue[run] = auction_revenue
         run2agent2bid[run] = agent2bid
+        run2agent2argmax[run] = agent2argmax
     # Make sure we can write results
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -253,9 +258,32 @@ if __name__ == '__main__':
         max_itr = df['Iteration'].max()
         for i in range(plot_last_iter):
             df_i = df[df['Iteration'] == max_itr - i]
-            heat[int(df_i.iloc[0]['Bid']), int(df_i.iloc[1]['Bid'])] += 1
+            heat[int(df_i.iloc[0][measure_name]), int(df_i.iloc[1][measure_name])] += 1
         sns.heatmap(data=heat, ax=axes)
         plt.savefig(f"{output_dir}/heatmap_{measure_name.replace(' ', '_')}_{rounds_per_iter}_rounds_{num_iter}_iters_{num_runs}_runs_{obs_embedding_size}_emb_of_{embedding_size}.pdf", bbox_inches='tight')
+
+    def heatmap_measure_per_agent_in_blocks(run2agent2measure, measure_name, cumulative=False, log_y=False, yrange=None, optimal=None):
+        # Generate DataFrame for Seaborn
+        if type(run2agent2measure) != pd.DataFrame:
+            df = measure_per_agent2df(run2agent2measure, measure_name)
+        else:
+            df = run2agent2measure
+
+        # df = df[(df['Iteration'].max() - df['Iteration']) < plot_last_iter]
+        max_measure = int(df[measure_name].max()+1)
+        block_size = 500
+        for block in range(df['Iteration'].max() // block_size + 1):
+            df_block = df[df['Iteration'] // block_size == block]
+            heat = np.zeros((max_measure,max_measure))
+            # max_itr = df_block['Iteration'].max()
+            fig, axes = plt.subplots(figsize=(8, 8))
+            plt.title(f'{measure_name} Over Time', fontsize=FONTSIZE + 2)
+            for i in range(block_size * block, block_size * (block+1)):
+                df_i = df_block[df_block['Iteration'] == i]
+                heat[int(df_i.iloc[0][measure_name]), int(df_i.iloc[1][measure_name])] += 1
+            sns.heatmap(data=heat, ax=axes)
+            plt.savefig(f"{output_dir}/heatmap_{block}_{measure_name.replace(' ', '_')}_{rounds_per_iter}_rounds_{num_iter}_iters_{num_runs}_runs_{obs_embedding_size}_emb_of_{embedding_size}.pdf", bbox_inches='tight')
+
 
     def plot_measure_per_agent(run2agent2measure, measure_name, cumulative=False, log_y=False, yrange=None, optimal=None):
         # Generate DataFrame for Seaborn
@@ -267,9 +295,10 @@ if __name__ == '__main__':
         fig, axes = plt.subplots(figsize=FIGSIZE)
         plt.title(f'{measure_name} Over Time', fontsize=FONTSIZE + 2)
         min_measure, max_measure = 0.0, 0.0
-        df = df[(df['Iteration'].max() - df['Iteration']) < plot_last_iter]
-        df_avg = 
-        sns.lineplot(data=df, x="Iteration", y=measure_name, hue="Agent", ax=axes)
+        # df = df[(df['Iteration'].max() - df['Iteration']) < plot_last_iter]
+        df['avg_id'] = np.floor(df['Iteration'] / avg_over)
+        df_avg = df.groupby(['Agent', 'Run', 'avg_id']).mean()
+        sns.lineplot(data=df_avg, x="Iteration", y=measure_name, hue="Agent", ax=axes)
         plt.xticks(fontsize=FONTSIZE - 2)
         plt.ylabel(f'{measure_name}', fontsize=FONTSIZE)
         if optimal is not None:
@@ -321,6 +350,9 @@ if __name__ == '__main__':
     bid_df = plot_measure_per_agent(run2agent2bid, 'Bid').sort_values(['Agent', 'Run', 'Iteration'])
     bid_df.to_csv(f'{output_dir}/bid_{rounds_per_iter}_rounds_{num_iter}_iters_{num_runs}_runs_{obs_embedding_size}_emb_of_{embedding_size}.csv', index=False)
 
+    heatmap_measure_per_agent_in_blocks(run2agent2argmax, 'Q-Max')
+    q_df = plot_measure_per_agent(run2agent2argmax, 'Q-Max').sort_values(['Agent', 'Run', 'Iteration'])
+    q_df.to_csv(f'{output_dir}/qmax_{rounds_per_iter}_rounds_{num_iter}_iters_{num_runs}_runs_{obs_embedding_size}_emb_of_{embedding_size}.csv', index=False)
 
     def measure2df(run2measure, measure_name):
         df_rows = {'Run': [], 'Iteration': [], measure_name: []}

@@ -1,0 +1,55 @@
+{
+    "random_seed": 1,
+    "num_runs": 1,
+    "num_iter" : 100000,
+    "rounds_per_iter": 1,
+    "num_participants_per_round": 2,
+    "embedding_size": 1,
+    "embedding_var": 1.0,
+    "obs_embedding_size": 4,
+    "avg_over": 100,
+    "allocation": "FirstPrice",
+    "agents": [ {
+      "name": "Vector Q Learnt 10",
+      "num_copies": 1,
+      "num_items": 1,
+      "value": 15,
+        "allocator": {
+          "type": "FixedAllocator",
+          "kwargs": {}
+        },
+        "bidder": {
+          "type": "VectorQBidder",
+          "kwargs": {
+                "value": 10,
+                "epsilon": 0.25,
+                "decay": 0.00002,
+                "alpha": 0.05,
+                "gamma": 0.99
+            }
+        }
+      },
+      {
+        "name": "Vector Q Learnt 20",
+        "num_copies": 1,
+        "num_items": 1,
+        "value": 20,
+          "allocator": {
+            "type": "FixedAllocator",
+            "kwargs": {}
+          },
+          "bidder": {
+            "type": "VectorQBidder",
+            "kwargs": {
+                  "value": 20,
+                  "epsilon": 0.25,
+                  "decay": 0.00002,
+                  "alpha": 0.05,
+                  "gamma": 0.99
+              }
+          }
+        }
+    ],
+    "output_dir": "results/FP_2_Vector_Q_asymmetric_values_10_20/"
+  }
+  
