@@ -309,7 +309,7 @@ if __name__ == '__main__':
         min_measure, max_measure = 0.0, 0.0
         # df = df[(df['Iteration'].max() - df['Iteration']) < plot_last_iter]
         df['avg_id'] = np.floor(df['Iteration'] / avg_over)
-        df_avg = df.groupby(['Agent', 'Run', 'avg_id']).mean()
+        df_avg = df.groupby(['Agent', 'Run', 'avg_id']).mean().reset_index()
         sns.lineplot(data=df_avg, x="Iteration", y=measure_name, hue="Agent", ax=axes)
         plt.xticks(fontsize=FONTSIZE - 2)
         plt.ylabel(f'{measure_name}', fontsize=FONTSIZE)
@@ -332,14 +332,17 @@ if __name__ == '__main__':
         return df, df_avg
 
 
-    net_utility_df, net_utility_df_avg = plot_measure_per_agent(run2agent2net_utility, 'Net Utility').sort_values(['Agent', 'Run', 'Iteration'])
+    net_utility_df, net_utility_df_avg = plot_measure_per_agent(run2agent2net_utility, 'Net Utility')
+    net_utility_df = net_utility_df.sort_values(['Agent', 'Run', 'Iteration'])
+    net_utility_df_avg = net_utility_df_avg.sort_values(['Agent', 'Run', 'avg_id'])
     net_utility_df.to_csv(f'{output_dir}/net_utility_{rounds_per_iter}_rounds_{num_iter}_iters_{num_runs}_runs_{obs_embedding_size}_emb_of_{embedding_size}.csv', index=False)
     net_utility_df_avg.to_csv(f'{output_dir}/net_utility_avg_{rounds_per_iter}_rounds_{num_iter}_iters_{num_runs}_runs_{obs_embedding_size}_emb_of_{embedding_size}.csv', index=False)
 
     net_utility_df['Net Utility (Cumulative)'] = net_utility_df.groupby(['Agent', 'Run'])['Net Utility'].cumsum()
     plot_measure_per_agent(net_utility_df, 'Net Utility (Cumulative)')
 
-    gross_utility_df, gross_utility_df_avg = plot_measure_per_agent(run2agent2gross_utility, 'Gross Utility').sort_values(['Agent', 'Run', 'Iteration'])
+    gross_utility_df, gross_utility_df_avg = plot_measure_per_agent(run2agent2gross_utility, 'Gross Utility')
+    gross_utility_df = gross_utility_df.sort_values(['Agent', 'Run', 'Iteration'])
     gross_utility_df.to_csv(f'{output_dir}/gross_utility_{rounds_per_iter}_rounds_{num_iter}_iters_{num_runs}_runs_{obs_embedding_size}_emb_of_{embedding_size}.csv', index=False)
 
     gross_utility_df['Gross Utility (Cumulative)'] = gross_utility_df.groupby(['Agent', 'Run'])['Gross Utility'].cumsum()
@@ -360,11 +363,13 @@ if __name__ == '__main__':
     shading_factor_df = plot_measure_per_agent(run2agent2gamma, 'Shading Factors')
 
     heatmap_measure_per_agent(run2agent2bid, 'Bid')
-    bid_df, bid_df_avg = plot_measure_per_agent(run2agent2bid, 'Bid').sort_values(['Agent', 'Run', 'Iteration'])
+    bid_df, bid_df_avg = plot_measure_per_agent(run2agent2bid, 'Bid')
+    bid_df = bid_df.sort_values(['Agent', 'Run', 'Iteration'])
     bid_df.to_csv(f'{output_dir}/bid_{rounds_per_iter}_rounds_{num_iter}_iters_{num_runs}_runs_{obs_embedding_size}_emb_of_{embedding_size}.csv', index=False)
 
     heatmap_measure_per_agent_in_blocks(run2agent2argmax, 'Q-Max')
-    q_df, q_df_avg = plot_measure_per_agent(run2agent2argmax, 'Q-Max').sort_values(['Agent', 'Run', 'Iteration'])
+    q_df, q_df_avg = plot_measure_per_agent(run2agent2argmax, 'Q-Max')
+    q_df = q_df.sort_values(['Agent', 'Run', 'Iteration'])
     q_df.to_csv(f'{output_dir}/qmax_{rounds_per_iter}_rounds_{num_iter}_iters_{num_runs}_runs_{obs_embedding_size}_emb_of_{embedding_size}.csv', index=False)
 
     def measure2df(run2measure, measure_name):
