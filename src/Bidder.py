@@ -180,7 +180,7 @@ class ApproximateQMixedRegretBidder(Bidder):
  
 
 class ApproximateQInterpolateBidder(Bidder):
-    def __init__(self, rng, value, epsilon, decay, alpha, gamma, reward=0.0):
+    def __init__(self, rng, value, epsilon, decay, alpha, gamma, beta=0.0):
         super(ApproximateQInterpolateBidder, self).__init__(rng)
         self.truthful = True
         # Size of the state feature vector
@@ -198,7 +198,7 @@ class ApproximateQInterpolateBidder(Bidder):
         self.n_basis = 3
         self.state = np.zeros(self.state_size)
         self.theta = np.random.rand(self.action_size, (self.state_size)*self.n_basis)#, self.action_size)  # Weight parameters for the Q-function
-        self.reward = reward
+        self.beta = beta
 
     def state_features(self, state):
         # fourier basis of n degrees
@@ -239,7 +239,7 @@ class ApproximateQInterpolateBidder(Bidder):
         else:
             # Overbid regret
             regret = min(-(prices[-1] - second_prices[-1]), 0)
-        regret = self.reward * reward + (1 - self.reward) * regret
+        regret =  (1 - self.beta) * reward + self.beta * regret
         next_state = np.array([bids[-1], first_prices[-1], second_prices[-1]])#np.array([bids[-1], prices[-1]]) #
         # next_state_expanded = np.repeat(np.expand_dims(next_state,0), self.action_size, axis=0) # [20,3]
         # next_features =  np.concatenate([next_state_expanded, self.all_actions], axis = 1) # [20, 4]

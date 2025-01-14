@@ -282,7 +282,8 @@ if __name__ == '__main__':
         max_measure = int(df[measure_name].max()+1)
         block_size = 500
         agents_name = df['Agent'].unique()
-        for block in range(df['Iteration'].max() // block_size + 1):
+        # for block in range(df['Iteration'].max() // block_size + 1):
+        for block in range(df['Iteration'].max() // block_size, df['Iteration'].max() // block_size + 1):
             df_block = df[df['Iteration'] // block_size == block]
             heat = np.zeros((max_measure,max_measure))
             # max_itr = df_block['Iteration'].max()
