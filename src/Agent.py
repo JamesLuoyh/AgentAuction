@@ -61,6 +61,7 @@ class Agent:
                                                best_expected_value=0.0,
                                                true_CTR=0.0,
                                                price=0.0,
+                                               first_price=0.0,
                                                second_price=0.0,
                                                outcome=0,
                                                won=False))
@@ -68,15 +69,15 @@ class Agent:
         self.argmax += self.bidder.argmax
         return bid, best_item
 
-    def charge(self, price, second_price, outcome):
-        self.logs[-1].set_price_outcome(price, second_price, outcome, won=True)
+    def charge(self, price, first_price, second_price, outcome):
+        self.logs[-1].set_price_outcome(price, first_price, second_price, outcome, won=True)
         last_value = self.logs[-1].value * outcome
         self.net_utility += (last_value - price)
         self.gross_utility += last_value
         # print('charge', self.logs[-1])
 
-    def set_price(self, price):
-        self.logs[-1].set_price(price)
+    def set_price(self, price, first_price, second_price):
+        self.logs[-1].set_price(price, first_price, second_price)
 
     def update(self, iteration, plot=False, figsize=(8,5), fontsize=14):
         # Gather relevant logs
@@ -85,6 +86,8 @@ class Agent:
         values = np.array(list(opp.value for opp in self.logs))
         bids = np.array(list(opp.bid for opp in self.logs))
         prices = np.array(list(opp.price for opp in self.logs))
+        first_prices = np.array(list(opp.first_price for opp in self.logs))
+        second_prices = np.array(list(opp.second_price for opp in self.logs))
         outcomes = np.array(list(opp.outcome for opp in self.logs))
         estimated_CTRs = np.array(list(opp.estimated_CTR for opp in self.logs))
 
@@ -93,26 +96,37 @@ class Agent:
         self.allocator.update(contexts[won_mask], items[won_mask], outcomes[won_mask], iteration, plot, figsize, fontsize, self.name)
 
         # Update bidding model with all data
-        print('agents', outcomes)
-        self.bidder.update(contexts, values, bids, prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, self.name)
+        # print('agents', outcomes, first_prices)
+        self.bidder.update(contexts, values, bids, prices, first_prices, second_prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, self.name)
 
     def get_allocation_regret(self):
         ''' How much value am I missing out on due to suboptimal allocation? '''
         return np.sum(list(opp.best_expected_value - opp.true_CTR * opp.value for opp in self.logs))
 
+    # def get_estimation_regret(self):
+    #     ''' How much am I overpaying due to over-estimation of the value? '''
+    #     return np.sum(list(opp.estimated_CTR * opp.value - opp.true_CTR * opp.value for opp in self.logs))
+
     def get_estimation_regret(self):
-        ''' How much am I overpaying due to over-estimation of the value? '''
-        return np.sum(list(opp.estimated_CTR * opp.value - opp.true_CTR * opp.value for opp in self.logs))
+        ''' Total regret '''
+        return self.get_overbid_regret() + self.get_underbid_regret()
 
     def get_overbid_regret(self):
         ''' How much am I overpaying because I could shade more? '''
         return np.sum(list((opp.price - opp.second_price) * opp.won for opp in self.logs))
 
+    # def get_underbid_regret(self):
+    #     ''' How much have I lost because I could have shaded less? '''
+    #     # The difference between the winning price and our bid -- for opportunities we lost, and where we could have won without overpaying
+    #     # Important to mention that this assumes a first-price auction! i.e. the price is the winning bid
+    #     return np.sum(list((opp.price - opp.bid) * (not opp.won) * (opp.price < (opp.true_CTR * opp.value)) for opp in self.logs))
+
     def get_underbid_regret(self):
         ''' How much have I lost because I could have shaded less? '''
         # The difference between the winning price and our bid -- for opportunities we lost, and where we could have won without overpaying
         # Important to mention that this assumes a first-price auction! i.e. the price is the winning bid
-        return np.sum(list((opp.price - opp.bid) * (not opp.won) * (opp.price < (opp.true_CTR * opp.value)) for opp in self.logs))
+        return np.sum(list((opp.value - opp.first_price) * (not opp.won) for opp in self.logs))
+
 
     def get_CTR_RMSE(self):
         return np.sqrt(np.mean(list((opp.true_CTR - opp.estimated_CTR)**2 for opp in self.logs)))

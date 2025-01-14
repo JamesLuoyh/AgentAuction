@@ -43,10 +43,11 @@ class NoisyBidder(Bidder):
         assert(estimated_CTR == 1)
         
         # print(coin_flip, self.epsilon, self.action)
-        return int(np.random.normal(self.value-2, 1, 1))
+        action = int(np.random.uniform(low=0, high=self.value + 1, size=1))#) int(np.random.normal(self.value-2, 1, 1))
+        self.argmax = action
+        return action
 
-
-    def update(self, contexts, values, bids, prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
+    def update(self, contexts, values, bids, prices, first_prices, second_prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
         # print("outcomesoutcomes", outcomes)
         # coin_flip = np.random.rand(1)
         # if coin_flip >= self.epsilon:
@@ -61,10 +62,10 @@ class NoisyBidder(Bidder):
         return
         
 
-class HueristicBidder(Bidder):
+class HeuristicBidder(Bidder):
     """ A bidder that uses Q-learning to bid """
     def __init__(self, rng, value):
-        super(HueristicBidder, self).__init__(rng)
+        super(HeuristicBidder, self).__init__(rng)
         self.truthful = True
         # assume value is 100 for the naive example
         # the bid is integer
@@ -80,10 +81,11 @@ class HueristicBidder(Bidder):
         assert(estimated_CTR == 1)
         
         # print(coin_flip, self.epsilon, self.action)
+        self.argmax = self.action
         return self.action
 
 
-    def update(self, contexts, values, bids, prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
+    def update(self, contexts, values, bids, prices, first_prices, second_prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
         # print("outcomesoutcomes", outcomes)
         # coin_flip = np.random.rand(1)
         # if coin_flip >= self.epsilon:
@@ -95,8 +97,373 @@ class HueristicBidder(Bidder):
         #     self.action += 1
         # else:
         #     self.action = int(1 * self.action / 2)
-        self.action = self.value - 1 - self.action
+        self.action = self.value - self.action #self.value/2 - self.action
+
+
+class ApproximateQMixedRegretBidder(Bidder):
+    def __init__(self, rng, value, epsilon, decay, alpha, gamma, reward=0.0):
+        super(ApproximateQMixedRegretBidder, self).__init__(rng)
+        self.truthful = True
+        # Size of the state feature vector
+        # including previous bid, previous first price, previous second price, and action
+        self.state_size = 3
+        self.value = value
+        self.action_size = value + 1  # Number of possible actions
+        self.alpha = alpha  # Learning rate
+        self.gamma = gamma  # Discount factor
+        self.epsilon = epsilon  # Epsilon-greedy parameter for exploration
+        self.decay = decay # epsilon decay
+        self.action = 10
         
+        self.all_actions = np.expand_dims(np.arange(self.action_size), 1)
+        self.n_basis = 3
+        self.state = np.zeros(self.state_size)
+        self.theta_reward = np.random.rand(self.action_size, (self.state_size)*self.n_basis)#, self.action_size)  # Weight parameters for the Q-function
+        self.theta_regret = np.random.rand(self.action_size, (self.state_size)*self.n_basis)
+        self.reward = reward
+
+    def state_features(self, state):
+        # fourier basis of n degrees
+        state_actions = state/self.value - 0.5
+        state_features = np.concatenate([np.cos(i * np.pi * state) for i in range(self.n_basis)], axis=-1)
+        # print(state_features)
+        return state_features
+
+    def q_values(self, state, actions):
+        # linear approximation
+        return np.dot(self.state_features(state), self.theta_reward.T)[actions].squeeze(), np.dot(self.state_features(state), self.theta_regret.T)[actions].squeeze() # [20]
+
+    def bid(self, value, context, estimated_CTR=1):
+        coin_flip = np.random.rand(1)
+        state_expanded = np.repeat(np.expand_dims(self.state,0), self.action_size, axis=0) # [20,3]
+        # state_actions =  np.concatenate([state_expanded, self.all_actions], axis = 1) # [20, 4]
+        q_values = self.q_values(self.state, self.all_actions)
+        # print(q_values)
+
+
+        q_values_chosen = q_values[1] if np.random.rand(1) > self.reward else q_values[0]
+
+        self.argmax = np.argmax(q_values_chosen)# np.random.choice(np.where(q_values > np.max(q_values) - 0.01)[0])
+
+        if coin_flip >= self.epsilon:
+            # exploit
+            self.action = self.argmax
+        else:
+            # explore
+            self.action = np.random.randint(self.action_size)
+        self.q = q_values[0][self.action], q_values[1][self.action]
+        # print(coin_flip, self.epsilon, self.action)
+        return self.action
+
+    def update(self, contexts, values, bids, prices, first_prices, second_prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
+        reward = outcomes[-1] * (values[-1] - prices[-1])
+        # print("reward", reward)
+        if outcomes[-1] == 0:
+            # Underbid regret
+            # regret = 0#- (self.value - prices[-1])
+            regret = min(- (self.value - first_prices[-1]), 0)
+        else:
+            # Overbid regret
+            regret = min(-(prices[-1] - second_prices[-1]), 0)
+        regret = self.reward * reward + (1 - self.reward) * regret
+        next_state = np.array([bids[-1], first_prices[-1], second_prices[-1]])#np.array([bids[-1], prices[-1]]) #
+        # next_state_expanded = np.repeat(np.expand_dims(next_state,0), self.action_size, axis=0) # [20,3]
+        # next_features =  np.concatenate([next_state_expanded, self.all_actions], axis = 1) # [20, 4]
+        next_q_values = self.q_values(next_state, self.all_actions) # next_q_values = np.dot(next_features, np.expand_dims(self.theta, 1)).squeeze() # [20]
+        target = regret + self.gamma * np.max(next_q_values[0]), regret + self.gamma * np.max(next_q_values[1])
+        td = target[0] - self.q[0], target[1] - self.q[1]
+        state_features = self.state_features(self.state) #np.concatenate([], axis=-1)
+        self.theta_reward[bids[-1]] += self.alpha * td[0] * state_features
+        self.theta_regret[bids[-1]] += self.alpha * td[1] * state_features
+        self.state = next_state
+        self.epsilon *= np.exp(-self.decay) # exploit more and more
+ 
+
+class ApproximateQInterpolateBidder(Bidder):
+    def __init__(self, rng, value, epsilon, decay, alpha, gamma, reward=0.0):
+        super(ApproximateQInterpolateBidder, self).__init__(rng)
+        self.truthful = True
+        # Size of the state feature vector
+        # including previous bid, previous first price, previous second price, and action
+        self.state_size = 3
+        self.value = value
+        self.action_size = value + 1  # Number of possible actions
+        self.alpha = alpha  # Learning rate
+        self.gamma = gamma  # Discount factor
+        self.epsilon = epsilon  # Epsilon-greedy parameter for exploration
+        self.decay = decay # epsilon decay
+        self.action = 10
+        
+        self.all_actions = np.expand_dims(np.arange(self.action_size), 1)
+        self.n_basis = 3
+        self.state = np.zeros(self.state_size)
+        self.theta = np.random.rand(self.action_size, (self.state_size)*self.n_basis)#, self.action_size)  # Weight parameters for the Q-function
+        self.reward = reward
+
+    def state_features(self, state):
+        # fourier basis of n degrees
+        state_actions = state/self.value - 0.5
+        state_features = np.concatenate([np.cos(i * np.pi * state) for i in range(self.n_basis)], axis=-1)
+        # print(state_features)
+        return state_features
+
+    def q_values(self, state, actions):
+        # linear approximation
+        return np.dot(self.state_features(state), self.theta.T)[actions].squeeze() # [20]
+
+    def bid(self, value, context, estimated_CTR=1):
+        coin_flip = np.random.rand(1)
+        state_expanded = np.repeat(np.expand_dims(self.state,0), self.action_size, axis=0) # [20,3]
+        # state_actions =  np.concatenate([state_expanded, self.all_actions], axis = 1) # [20, 4]
+        q_values = self.q_values(self.state, self.all_actions)
+        # print(q_values)
+        self.argmax = np.argmax(q_values)# np.random.choice(np.where(q_values > np.max(q_values) - 0.01)[0])
+
+        if coin_flip >= self.epsilon:
+            # exploit
+            self.action = self.argmax
+        else:
+            # explore
+            self.action = np.random.randint(self.action_size)
+        self.q = q_values[self.action]
+        # print(coin_flip, self.epsilon, self.action)
+        return self.action
+
+    def update(self, contexts, values, bids, prices, first_prices, second_prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
+        reward = outcomes[-1] * (values[-1] - prices[-1])
+        # print("reward", reward)
+        if outcomes[-1] == 0:
+            # Underbid regret
+            # regret = 0#- (self.value - prices[-1])
+            regret = min(- (self.value - first_prices[-1]), 0)
+        else:
+            # Overbid regret
+            regret = min(-(prices[-1] - second_prices[-1]), 0)
+        regret = self.reward * reward + (1 - self.reward) * regret
+        next_state = np.array([bids[-1], first_prices[-1], second_prices[-1]])#np.array([bids[-1], prices[-1]]) #
+        # next_state_expanded = np.repeat(np.expand_dims(next_state,0), self.action_size, axis=0) # [20,3]
+        # next_features =  np.concatenate([next_state_expanded, self.all_actions], axis = 1) # [20, 4]
+        next_q_values = self.q_values(next_state, self.all_actions) # next_q_values = np.dot(next_features, np.expand_dims(self.theta, 1)).squeeze() # [20]
+        target = regret + self.gamma * np.max(next_q_values)
+        td = target - self.q
+        state_features = self.state_features(self.state) #np.concatenate([], axis=-1)
+        self.theta[bids[-1]] += self.alpha * td * state_features
+        self.state = next_state
+        self.epsilon *= np.exp(-self.decay) # exploit more and more
+ 
+
+class ApproximateRegretQBidder(Bidder):
+    def __init__(self, rng, value, epsilon, decay, alpha, gamma):
+        super(ApproximateRegretQBidder, self).__init__(rng)
+        self.truthful = True
+        # Size of the state feature vector
+        # including previous bid, previous first price, previous second price, and action
+        self.state_size = 3
+        self.value = value
+        self.action_size = value + 1  # Number of possible actions
+        self.alpha = alpha  # Learning rate
+        self.gamma = gamma  # Discount factor
+        self.epsilon = epsilon  # Epsilon-greedy parameter for exploration
+        self.decay = decay # epsilon decay
+        self.action = 10
+        
+        self.all_actions = np.expand_dims(np.arange(self.action_size), 1)
+        self.n_basis = 3
+        self.state = np.zeros(self.state_size)
+        self.theta = np.random.rand(self.action_size, (self.state_size)*self.n_basis)#, self.action_size)  # Weight parameters for the Q-function
+
+
+    def state_features(self, state):
+        # fourier basis of n degrees
+        state_actions = state/self.value - 0.5
+        state_features = np.concatenate([np.cos(i * np.pi * state) for i in range(self.n_basis)], axis=-1)
+        # print(state_features)
+        return state_features
+
+    def q_values(self, state, actions):
+        # linear approximation
+        return np.dot(self.state_features(state), self.theta.T)[actions].squeeze() # [20]
+
+    def bid(self, value, context, estimated_CTR=1):
+        coin_flip = np.random.rand(1)
+        state_expanded = np.repeat(np.expand_dims(self.state,0), self.action_size, axis=0) # [20,3]
+        # state_actions =  np.concatenate([state_expanded, self.all_actions], axis = 1) # [20, 4]
+        q_values = self.q_values(self.state, self.all_actions)
+        # print(q_values)
+        self.argmax = np.argmax(q_values)# np.random.choice(np.where(q_values > np.max(q_values) - 0.01)[0])
+
+        if coin_flip >= self.epsilon:
+            # exploit
+            self.action = self.argmax
+        else:
+            # explore
+            self.action = np.random.randint(self.action_size)
+        self.q = q_values[self.action]
+        # print(coin_flip, self.epsilon, self.action)
+        return self.action
+
+    def update(self, contexts, values, bids, prices, first_prices, second_prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
+        reward = outcomes[-1] * (values[-1] - prices[-1])
+        # print("reward", reward)
+        if outcomes[-1] == 0:
+            # Underbid regret
+            # regret = 0#- (self.value - prices[-1])
+            regret = min(- (self.value - first_prices[-1]), 0)
+        else:
+            # Overbid regret
+            regret = min(-(prices[-1] - second_prices[-1]), 0)
+        # regret = 0.25 * reward + 0.75 * regret
+        next_state = np.array([bids[-1], first_prices[-1], second_prices[-1]])#np.array([bids[-1], prices[-1]]) #
+        # next_state_expanded = np.repeat(np.expand_dims(next_state,0), self.action_size, axis=0) # [20,3]
+        # next_features =  np.concatenate([next_state_expanded, self.all_actions], axis = 1) # [20, 4]
+        next_q_values = self.q_values(next_state, self.all_actions) # next_q_values = np.dot(next_features, np.expand_dims(self.theta, 1)).squeeze() # [20]
+        target = regret + self.gamma * np.max(next_q_values)
+        td = target - self.q
+        state_features = self.state_features(self.state) #np.concatenate([], axis=-1)
+        self.theta[bids[-1]] += self.alpha * td * state_features
+        self.state = next_state
+        self.epsilon *= np.exp(-self.decay) # exploit more and more
+ 
+
+class ApproximateQBidder(Bidder):
+    def __init__(self, rng, value, epsilon, decay, alpha, gamma, deviate=False):
+        super(ApproximateQBidder, self).__init__(rng)
+        self.truthful = True
+        # Size of the state feature vector
+        # including previous bid, previous first price, previous second price, and action
+        self.state_size = 3
+        self.value = value
+        self.action_size = value + 1  # Number of possible actions
+        self.alpha = alpha  # Learning rate
+        self.gamma = gamma  # Discount factor
+        self.original_epsilon = epsilon
+        self.epsilon = epsilon  # Epsilon-greedy parameter for exploration
+        self.decay = decay # epsilon decay
+        self.action = 10
+        
+        self.all_actions = np.expand_dims(np.arange(self.action_size), 1)
+        self.n_basis = 3
+        self.state = np.zeros(self.state_size)
+        self.theta = np.random.rand(self.action_size, (self.state_size)*self.n_basis)#, self.action_size)  # Weight parameters for the Q-function
+        self.previous_action = 0
+        self.previous_previous_action = 0
+        self.deviate = deviate
+        self.same_bid = 0
+
+    def state_features(self, state):
+        # fourier basis of n degrees
+        state_actions = state/self.action_size - 0.5
+        state_features = np.concatenate([np.cos(i * np.pi * state) for i in range(self.n_basis)], axis=-1)
+        # print(state_features)
+        return state_features
+
+    def q_values(self, state, actions):
+        # linear approximation
+        return np.dot(self.state_features(state), self.theta.T)[actions].squeeze() # [20]
+
+    def bid(self, value, context, estimated_CTR=1):
+        coin_flip = np.random.rand(1)
+        state_expanded = np.repeat(np.expand_dims(self.state,0), self.action_size, axis=0) # [20,3]
+        # state_actions =  np.concatenate([state_expanded, self.all_actions], axis = 1) # [20, 4]
+        q_values = self.q_values(self.state, self.all_actions)
+        # print(q_values)
+        self.argmax =  np.random.choice(np.where(q_values > np.max(q_values) - 0.01)[0])
+        # np.argmax(q_values)#
+        if coin_flip >= self.epsilon:
+            # exploit
+            self.action = self.argmax
+        else:
+            # explore
+            self.action = np.random.randint(self.action_size)
+        self.q = q_values[self.action]
+        # print(coin_flip, self.epsilon, self.action)
+        return self.action
+
+    def update(self, contexts, values, bids, prices, first_prices, second_prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
+        reward = outcomes[-1] * (values[-1] - prices[-1])
+        # print("reward", reward)
+        # if outcomes[-1] == 0:
+        #     # Underbid regret
+        #     # regret = 0#- (self.value - prices[-1])
+        #     regret = - prices[-1]#- (self.value )
+        #     # print("regret", regret)
+        # else:
+        #     # Overbid regret
+        #     regret = -(prices[-1] - second_prices[-1])
+        next_state = np.array([bids[-1], first_prices[-1], second_prices[-1]])
+        # next_state = np.array([bids[-1], prices[-1]])
+        # next_state = np.array([bids[-1]])
+        # next_state_expanded = np.repeat(np.expand_dims(next_state,0), self.action_size, axis=0) # [20,3]
+        # next_features =  np.concatenate([next_state_expanded, self.all_actions], axis = 1) # [20, 4]
+        next_q_values = self.q_values(next_state, self.all_actions) # next_q_values = np.dot(next_features, np.expand_dims(self.theta, 1)).squeeze() # [20]
+        target = reward + self.gamma * np.max(next_q_values)
+        td = target - self.q
+        state_features = self.state_features(self.state) #np.concatenate([], axis=-1)
+        self.theta[bids[-1]] += self.alpha * td * state_features
+        self.state = next_state
+        if self.deviate:#(self.bid == self.previous_action or self.bid == self.previous_previous_action):
+            self.same_bid += 1
+        # else:
+        #     self.same_bid = 0
+        if self.same_bid > 275000:
+            self.epsilon = self.original_epsilon
+            self.same_bid = 0
+        self.previous_previous_action = self.previous_action
+        self.previous_action = self.bid
+        self.epsilon *= np.exp(-self.decay) # exploit more and more
+        
+
+class VectorQRegretBidder(Bidder):
+    """ A bidder that uses Q-learning to bid """
+    def __init__(self, rng, value, epsilon, decay, alpha, gamma):
+        super(VectorQRegretBidder, self).__init__(rng)
+        self.truthful = True
+        # assume value is 100 for the naive example
+        # the bid is integer
+        self.value = value
+        self.q_table = torch.zeros((self.value), dtype=float)#torch.randint(0, self.value, size=(self.value, self.value), dtype=float)
+        self.epsilon = epsilon
+        self.decay = decay # 0.000002 #0.9999999
+        self.alpha = alpha #0.001
+        self.gamma = gamma #0.9999
+        self.state = 0
+        self.action = 0
+        self.next_state = 0
+        self.rounds = 0
+
+
+    def bid(self, value, context, estimated_CTR=1):
+        assert(estimated_CTR == 1)
+        coin_flip = np.random.rand(1)
+        self.argmax = np.random.choice(torch.where(self.q_table == torch.max(self.q_table))[0])
+        if coin_flip >= self.epsilon:
+            # exploit
+            self.action = self.argmax
+            self.next_state = self.action
+        else:
+            # explore
+            self.action = np.random.randint(self.value)
+            self.next_state = self.action
+        # print(coin_flip, self.epsilon, self.action)
+        return self.action
+
+
+    def update(self, contexts, values, bids, prices, first_prices, second_prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
+        # print("outcomesoutcomes", outcomes)
+        if outcomes[-1] == 0:
+            # Underbid regret
+            regret = min(- (self.value - first_prices[-1]),0)
+            # regret = - prices[-1]
+            # print("regret", regret)
+        else:
+            # Overbid regret
+            regret = min(-(prices[-1] - second_prices[-1]),0)
+        self.q_table[self.action] += self.alpha * (regret + self.gamma * torch.max(self.q_table) - self.q_table[self.action])
+        self.state = self.next_state
+        # print(self.q_table[self.state, self.action])
+        # print(reward, self.state, self.action)
+        self.epsilon *= np.exp(-self.decay) # exploit more and more
+
 
 class VectorQBidder(Bidder):
     """ A bidder that uses Q-learning to bid """
@@ -106,7 +473,7 @@ class VectorQBidder(Bidder):
         # assume value is 100 for the naive example
         # the bid is integer
         self.value = value
-        self.q_table = torch.zeros((self.value), dtype=float)#torch.randint(0, self.value, size=(self.value, self.value), dtype=float)
+        self.q_table = torch.zeros((self.value + 1), dtype=float)#torch.randint(0, self.value, size=(self.value, self.value), dtype=float)
         self.epsilon = epsilon
         self.decay = decay # 0.000002 #0.9999999
         self.alpha = alpha #0.001
@@ -135,14 +502,81 @@ class VectorQBidder(Bidder):
         return self.action
 
 
-    def update(self, contexts, values, bids, prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
+    def update(self, contexts, values, bids, prices, first_prices, second_prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
         # print("outcomesoutcomes", outcomes)
-        reward = outcomes[-1] * (values[-1] - prices[-1]) - 0.2
+        reward = outcomes[-1] * (values[-1] - prices[-1])
         self.q_table[self.action] += self.alpha * (reward + self.gamma * torch.max(self.q_table) - self.q_table[self.action])
         self.state = self.next_state
         # print(self.q_table[self.state, self.action])
         # print(reward, self.state, self.action)
         self.epsilon *= np.exp(-self.decay) # exploit more and more
+
+
+class TabularQObserveBothBidder(Bidder):
+    def __init__(self, rng, value, epsilon, decay, alpha, gamma):
+        super(TabularQObserveBothBidder, self).__init__(rng)
+        self.truthful = True
+        # Size of the state feature vector
+        # including previous bid, previous first price, previous second price, and action
+        self.value = value
+        self.action_size = value  # Number of possible actions
+        self.alpha = alpha  # Learning rate
+        self.gamma = gamma  # Discount factor
+        self.epsilon = epsilon  # Epsilon-greedy parameter for exploration
+        self.decay = decay # epsilon decay
+        self.action = 10
+        self.q_table = np.zeros((self.value*self.value, self.value), dtype=float)#
+        self.all_actions = np.expand_dims(np.arange(self.action_size), 1)
+        self.state = np.zeros(2)
+
+
+    def state_features(self, state):
+        # fourier basis of n degrees
+        state_features = int(state[0]* self.value + state[1])
+        # print(state_features)
+        return state_features
+
+    def q_values(self, state, actions):
+        # linear approximation
+        return self.q_table[self.state_features(state), actions].flatten()
+
+    def bid(self, value, context, estimated_CTR=1):
+        coin_flip = np.random.rand(1)
+        q_values = self.q_values(self.state, self.all_actions)
+        # print(q_values)
+        self.argmax = np.random.choice(np.where(q_values > np.max(q_values) - 0.01)[0])
+        # np.argmax(q_values)#
+        if coin_flip >= self.epsilon:
+            # exploit
+            self.action = self.argmax
+        else:
+            # explore
+            self.action = np.random.randint(self.action_size)
+        self.q = q_values[self.action]
+        # print(coin_flip, self.epsilon, self.action)
+        return self.action
+
+    def update(self, contexts, values, bids, prices, first_prices, second_prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
+        reward = outcomes[-1] * (values[-1] - prices[-1])
+        # if outcomes[-1] == 0:
+        #     # Underbid regret
+        #     reward = min(- (self.value - prices[-1]),0)
+        #     # regret = - prices[-1]
+        #     # print("regret", regret)
+        # else:
+        #     # Overbid regret
+        #     reward = min(-(prices[-1] - second_prices[-1]),0)
+        others_bid = (1 - outcomes[-1]) * first_prices[-1] + outcomes[-1] * second_prices[-1]
+        next_state =  np.array([bids[-1], others_bid])#np.array([bids[-1], prices[-1]]) #
+        next_q_values = self.q_values(next_state, self.all_actions) # next_q_values = np.dot(next_features, np.expand_dims(self.theta, 1)).squeeze() # [20]
+        target = reward + self.gamma * np.max(next_q_values)
+        td = target - self.q
+        state_features = self.state_features(self.state) #np.concatenate([], axis=-1)
+        self.q_table[state_features, bids[-1]] += self.alpha * td
+        self.state = next_state
+        self.epsilon *= np.exp(-self.decay) # exploit more and more
+        
+
 
 class TabularQBidder(Bidder):
     """ A bidder that uses Q-learning to bid """
@@ -151,12 +585,12 @@ class TabularQBidder(Bidder):
         self.truthful = True
         # assume value is 100 for the naive example
         # the bid is integer
-        self.value = 100
+        self.value = value
         self.q_table = torch.zeros((self.value, self.value), dtype=float)#torch.randint(0, self.value, size=(self.value, self.value), dtype=float)
-        self.epsilon = 0.25
-        self.decay = 0.00002 #0.9999999
-        self.alpha = 0.05
-        self.gamma = 0.99
+        self.epsilon = epsilon
+        self.decay = decay #0.9999999
+        self.alpha = alpha
+        self.gamma = gamma
         self.state = 0
         self.action = 0
         self.next_state = 0
@@ -166,9 +600,10 @@ class TabularQBidder(Bidder):
     def bid(self, value, context, estimated_CTR=1):
         assert(estimated_CTR == 1)
         coin_flip = np.random.rand(1)
+        self.argmax = np.random.choice(torch.where(self.q_table[self.state] == torch.max(self.q_table[self.state]))[0])
         if coin_flip >= self.epsilon:
             # exploit
-            self.action = np.random.choice(torch.where(self.q_table[self.state] == torch.max(self.q_table[self.state]))[0])
+            self.action = self.argmax
             self.next_state = self.action
         else:
             # explore
@@ -178,15 +613,16 @@ class TabularQBidder(Bidder):
         return self.action
 
 
-    def update(self, contexts, values, bids, prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
+    def update(self, contexts, values, bids, prices, first_prices, second_prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
         # print("outcomesoutcomes", outcomes)
+        # print(values[-1], bids[-1], prices[-1])
         reward = outcomes[-1] * (values[-1] - prices[-1])
-        self.q_table[self.state,self.action] += self.alpha * (reward + self.gamma * torch.max(self.q_table[self.next_state]) - self.q_table[self.state,self.action])
-        self.state = self.next_state
+        self.q_table[self.state,self.action] += self.alpha * (reward + self.gamma * torch.max(self.q_table[int(bids[-1])]) - self.q_table[self.state,self.action])
+        self.state = int(bids[-1])
         # print(self.q_table[self.state, self.action])
         # print(reward, self.state, self.action)
         self.epsilon *= np.exp(-self.decay) # exploit more and more
-        print(self.epsilon)
+        
 
 
 class TruthfulBidder(Bidder):

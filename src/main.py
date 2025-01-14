@@ -112,6 +112,7 @@ def instantiate_auction(rng, config, agents2items, agents2item_values, agents, m
 
 
 def simulation_run():
+    stopping_criteria=50000
     for i in range(num_iter):
         print(f'==== ITERATION {i} ====')
 
@@ -127,6 +128,7 @@ def simulation_run():
         print(result)
         print(f'\tAuction revenue: \t {auction.revenue}')
 
+        # early_stopping = True
         for agent_id, agent in enumerate(auction.agents):
             agent.update(iteration=i, plot=True, figsize=FIGSIZE, fontsize=FONTSIZE)
 
@@ -154,8 +156,13 @@ def simulation_run():
             agent.clear_utility()
             agent.clear_logs()
 
+            # if len(agent2net_utility[agent.name]) < 2 * stopping_criteria or np.sum(agent2net_utility[agent.name][-stopping_criteria:]) > np.sum(agent2net_utility[agent.name][-2*stopping_criteria:-stopping_criteria]):
+            #     early_stopping = False
+
         auction_revenue.append(auction.revenue)
         auction.clear_revenue()
+        # if early_stopping:
+        #     return
 
 if __name__ == '__main__':
     # Parse commandline arguments
@@ -256,10 +263,12 @@ if __name__ == '__main__':
         max_measure = int(df[measure_name].max()+1)
         heat = np.zeros((max_measure,max_measure))
         max_itr = df['Iteration'].max()
-        for i in range(plot_last_iter):
+        for i in range(min(max_itr,plot_last_iter)):
             df_i = df[df['Iteration'] == max_itr - i]
-            heat[int(df_i.iloc[0][measure_name]), int(df_i.iloc[1][measure_name])] += 1
-        sns.heatmap(data=heat, ax=axes)
+            heat[-int(df_i.iloc[0][measure_name])-1, int(df_i.iloc[1][measure_name])] += 1
+        ax = sns.heatmap(data=heat, yticklabels=np.arange(max_measure)[::-1], xticklabels=np.arange(max_measure), cmap='Blues', linecolor='black', linewidths=0.1)
+        agents_name = df['Agent'].unique()
+        ax.set(ylabel=agents_name[0], xlabel=agents_name[1])
         plt.savefig(f"{output_dir}/heatmap_{measure_name.replace(' ', '_')}_{rounds_per_iter}_rounds_{num_iter}_iters_{num_runs}_runs_{obs_embedding_size}_emb_of_{embedding_size}.pdf", bbox_inches='tight')
 
     def heatmap_measure_per_agent_in_blocks(run2agent2measure, measure_name, cumulative=False, log_y=False, yrange=None, optimal=None):
@@ -268,20 +277,23 @@ if __name__ == '__main__':
             df = measure_per_agent2df(run2agent2measure, measure_name)
         else:
             df = run2agent2measure
-
+        
         # df = df[(df['Iteration'].max() - df['Iteration']) < plot_last_iter]
         max_measure = int(df[measure_name].max()+1)
         block_size = 500
+        agents_name = df['Agent'].unique()
         for block in range(df['Iteration'].max() // block_size + 1):
             df_block = df[df['Iteration'] // block_size == block]
             heat = np.zeros((max_measure,max_measure))
             # max_itr = df_block['Iteration'].max()
             fig, axes = plt.subplots(figsize=(8, 8))
             plt.title(f'{measure_name} Over Time', fontsize=FONTSIZE + 2)
-            for i in range(block_size * block, block_size * (block+1)):
+            for i in range(block_size * block, min(df['Iteration'].max(), block_size * (block+1))):
                 df_i = df_block[df_block['Iteration'] == i]
-                heat[int(df_i.iloc[0][measure_name]), int(df_i.iloc[1][measure_name])] += 1
-            sns.heatmap(data=heat, ax=axes)
+                heat[-int(df_i.iloc[0][measure_name])-1, int(df_i.iloc[1][measure_name])] += 1
+            ax = sns.heatmap(data=heat, yticklabels=np.arange(max_measure)[::-1], xticklabels=np.arange(max_measure), cmap='Blues', linecolor='black', linewidths=0.1)
+            
+            ax.set(ylabel=agents_name[0], xlabel=agents_name[1])
             plt.savefig(f"{output_dir}/heatmap_{block}_{measure_name.replace(' ', '_')}_{rounds_per_iter}_rounds_{num_iter}_iters_{num_runs}_runs_{obs_embedding_size}_emb_of_{embedding_size}.pdf", bbox_inches='tight')
 
 
@@ -317,16 +329,17 @@ if __name__ == '__main__':
         plt.tight_layout()
         plt.savefig(f"{output_dir}/{measure_name.replace(' ', '_')}_{rounds_per_iter}_rounds_{num_iter}_iters_{num_runs}_runs_{obs_embedding_size}_emb_of_{embedding_size}.pdf", bbox_inches='tight')
         # plt.show()
-        return df
+        return df, df_avg
 
 
-    net_utility_df = plot_measure_per_agent(run2agent2net_utility, 'Net Utility').sort_values(['Agent', 'Run', 'Iteration'])
+    net_utility_df, net_utility_df_avg = plot_measure_per_agent(run2agent2net_utility, 'Net Utility').sort_values(['Agent', 'Run', 'Iteration'])
     net_utility_df.to_csv(f'{output_dir}/net_utility_{rounds_per_iter}_rounds_{num_iter}_iters_{num_runs}_runs_{obs_embedding_size}_emb_of_{embedding_size}.csv', index=False)
+    net_utility_df_avg.to_csv(f'{output_dir}/net_utility_avg_{rounds_per_iter}_rounds_{num_iter}_iters_{num_runs}_runs_{obs_embedding_size}_emb_of_{embedding_size}.csv', index=False)
 
     net_utility_df['Net Utility (Cumulative)'] = net_utility_df.groupby(['Agent', 'Run'])['Net Utility'].cumsum()
     plot_measure_per_agent(net_utility_df, 'Net Utility (Cumulative)')
 
-    gross_utility_df = plot_measure_per_agent(run2agent2gross_utility, 'Gross Utility').sort_values(['Agent', 'Run', 'Iteration'])
+    gross_utility_df, gross_utility_df_avg = plot_measure_per_agent(run2agent2gross_utility, 'Gross Utility').sort_values(['Agent', 'Run', 'Iteration'])
     gross_utility_df.to_csv(f'{output_dir}/gross_utility_{rounds_per_iter}_rounds_{num_iter}_iters_{num_runs}_runs_{obs_embedding_size}_emb_of_{embedding_size}.csv', index=False)
 
     gross_utility_df['Gross Utility (Cumulative)'] = gross_utility_df.groupby(['Agent', 'Run'])['Gross Utility'].cumsum()
@@ -336,9 +349,9 @@ if __name__ == '__main__':
 
     plot_measure_per_agent(run2agent2allocation_regret, 'Allocation Regret')
     plot_measure_per_agent(run2agent2estimation_regret, 'Estimation Regret')
-    overbid_regret_df = plot_measure_per_agent(run2agent2overbid_regret, 'Overbid Regret')
+    overbid_regret_df, overbid_regret_df_avg = plot_measure_per_agent(run2agent2overbid_regret, 'Overbid Regret')
     overbid_regret_df.to_csv(f'{output_dir}/overbid_regret_{rounds_per_iter}_rounds_{num_iter}_iters_{num_runs}_runs_{obs_embedding_size}_emb_of_{embedding_size}.csv', index=False)
-    underbid_regret_df = plot_measure_per_agent(run2agent2underbid_regret, 'Underbid Regret')
+    underbid_regret_df, underbid_regret_df_avg = plot_measure_per_agent(run2agent2underbid_regret, 'Underbid Regret')
     underbid_regret_df.to_csv(f'{output_dir}/underbid_regret_{rounds_per_iter}_rounds_{num_iter}_iters_{num_runs}_runs_{obs_embedding_size}_emb_of_{embedding_size}.csv', index=False)
 
     plot_measure_per_agent(run2agent2CTR_RMSE, 'CTR RMSE', log_y=True)
@@ -347,11 +360,11 @@ if __name__ == '__main__':
     shading_factor_df = plot_measure_per_agent(run2agent2gamma, 'Shading Factors')
 
     heatmap_measure_per_agent(run2agent2bid, 'Bid')
-    bid_df = plot_measure_per_agent(run2agent2bid, 'Bid').sort_values(['Agent', 'Run', 'Iteration'])
+    bid_df, bid_df_avg = plot_measure_per_agent(run2agent2bid, 'Bid').sort_values(['Agent', 'Run', 'Iteration'])
     bid_df.to_csv(f'{output_dir}/bid_{rounds_per_iter}_rounds_{num_iter}_iters_{num_runs}_runs_{obs_embedding_size}_emb_of_{embedding_size}.csv', index=False)
 
     heatmap_measure_per_agent_in_blocks(run2agent2argmax, 'Q-Max')
-    q_df = plot_measure_per_agent(run2agent2argmax, 'Q-Max').sort_values(['Agent', 'Run', 'Iteration'])
+    q_df, q_df_avg = plot_measure_per_agent(run2agent2argmax, 'Q-Max').sort_values(['Agent', 'Run', 'Iteration'])
     q_df.to_csv(f'{output_dir}/qmax_{rounds_per_iter}_rounds_{num_iter}_iters_{num_runs}_runs_{obs_embedding_size}_emb_of_{embedding_size}.csv', index=False)
 
     def measure2df(run2measure, measure_name):

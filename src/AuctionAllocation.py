@@ -20,7 +20,7 @@ class FirstPrice(AllocationMechanism):
         sorted_bids = -np.sort(-bids)
         prices = sorted_bids[:num_slots]
         second_prices = sorted_bids[1:num_slots+1]
-        return winners, prices, second_prices
+        return winners, prices, prices, second_prices
 
 
 class SecondPrice(AllocationMechanism):
@@ -31,5 +31,23 @@ class SecondPrice(AllocationMechanism):
 
     def allocate(self, bids, num_slots):
         winners = np.argsort(-bids)[:num_slots]
-        prices = -np.sort(-bids)[1:num_slots+1]
-        return winners, prices, prices
+        sorted_bids = -np.sort(-bids)
+        first_prices = sorted_bids[:num_slots]
+        second_prices = sorted_bids[1:num_slots+1]
+        return winners, second_prices, first_prices, second_prices
+
+
+class MixedPrice(AllocationMechanism):
+    ''' (Generalised) Second-Price Allocation '''
+
+    def __init__(self):
+        super(MixedPrice, self).__init__()
+        self.fp_rate = 0.0
+
+    def allocate(self, bids, num_slots):
+        winners = np.argsort(-bids)[:num_slots]
+        sorted_bids = -np.sort(-bids)
+        first_prices = sorted_bids[:num_slots]
+        second_prices = sorted_bids[1:num_slots+1]
+        price = (self.fp_rate*first_prices + (1-self.fp_rate)*second_prices)
+        return winners, price, first_prices, second_prices

@@ -1,0 +1,35 @@
+{
+    "random_seed": 50,
+    "num_runs": 1,
+    "num_iter" : 500000,
+    "rounds_per_iter": 1,
+    "num_participants_per_round": 2,
+    "embedding_size": 1,
+    "embedding_var": 1.0,
+    "obs_embedding_size": 4,
+    "avg_over": 1000,
+    "allocation": "MixedPrice",
+    "agents": [ {
+      "name": "Approx Q 0.25 Regret Learnt",
+      "num_copies": 2,
+      "num_items": 1,
+      "value": 20,
+        "allocator": {
+          "type": "FixedAllocator",
+          "kwargs": {}
+        },
+        "bidder": {
+          "type": "ApproximateQInterpolateBidder",
+          "kwargs": {
+                "value": 20,
+                "epsilon": 0.25,
+                "decay": 0.00002,
+                "alpha": 0.05,
+                "gamma": 0.99,
+                "reward": 0.25
+            }
+        }
+      }
+    ],
+    "output_dir": "final/0.0_MP_2_APPROX_Q_value_20_interpolate_0.25_reveal_all/"
+  }
