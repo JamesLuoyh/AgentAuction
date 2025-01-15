@@ -1,0 +1,52 @@
+{
+    "random_seed": 50,
+    "num_runs": 1,
+    "num_iter" : 300000,
+    "rounds_per_iter": 1,
+    "num_participants_per_round": 2,
+    "embedding_size": 1,
+    "embedding_var": 1.0,
+    "obs_embedding_size": 4,
+    "avg_over": 1000,
+    "allocation": "MixedPrice",
+    "agents": [
+      {
+        "name": "Uniform Random Bidder",
+        "num_copies": 1,
+        "num_items": 1,
+        "value": 20,
+            "allocator": {
+            "type": "FixedAllocator",
+            "kwargs": {}
+            },
+            "bidder": {
+            "type": "NoisyBidder",
+            "kwargs": {
+                    "value": 20
+                }
+            }
+      },
+      {
+        "name": "Approx Q 0.5 Regret Learnt",
+        "num_copies": 1,
+        "num_items": 1,
+        "value": 20,
+          "allocator": {
+            "type": "FixedAllocator",
+            "kwargs": {}
+          },
+          "bidder": {
+            "type": "ApproximateQInterpolateBidder",
+            "kwargs": {
+                  "value": 20,
+                  "epsilon": 0.25,
+                  "decay": 0.00002,
+                  "alpha": 0.05,
+                  "gamma": 0.99,
+                  "beta": 0.5
+              }
+          }
+        }
+    ],
+    "output_dir": "final/0.0_MP_APPROX_Q_Uniform_value_20_interpolate_0.5_reveal_all/"
+  }
