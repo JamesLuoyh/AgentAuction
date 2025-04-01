@@ -24,6 +24,7 @@ class Auction:
         self.obs_embedding_size = obs_embedding_size
 
         self.num_participants_per_round = num_participants_per_round
+        self.win_counts = {}
 
     def simulate_opportunity(self):
         # Sample the number of slots uniformly between [1, max_slots]
@@ -56,15 +57,27 @@ class Auction:
         CTRs = np.array(CTRs)
         # Now we have bids, we need to somehow allocate slots
         # "second_prices" tell us how much lower the winner could have gone without changing the outcome
-        winners, prices, first_prices, second_prices = self.allocation.allocate(bids, num_slots)
+        winners, prices, first_prices, second_prices = self.allocation.allocate(bids, num_slots, np.array([self.win_counts.get(key,0) for key in participating_agents]))
         # print(winners)
+        for winner in winners:
+            # win_counts_np = np.array(list(self.win_counts.values()))
+            # if sum(win_counts_np) < 10:
+            for key in self.win_counts.keys():
+                self.win_counts[key] = 0.99 * self.win_counts[key]
+            self.win_counts[participating_agents[winner]] = self.win_counts.get(participating_agents[winner],0) + 1
+
+            # elif np.sum(win_counts_np) - self.win_counts.get(participating_agents[winner],0) > 0:
+            #     self.win_counts[participating_agents[winner]] = self.win_counts.get(participating_agents[winner],0) + 2
+            #     for key in self.win_counts.keys():
+            #         self.win_counts[key] -= 1
         if len(second_prices) == 0:
             second_prices = prices
-        print("first_prices", first_prices)
+        # print("first_prices", first_prices)
         # Bidders only obtain value when they get their outcome
         # Either P(view), P(click | view, ad), P(conversion | click, view, ad)
         # For now, look at P(click | ad) * P(view)
         outcomes = self.rng.binomial(1, CTRs[winners])
+        # print("winners", winners)
         # Let bidders know what they're being charged for
         for slot_id, (winner, price, first_price, second_price, outcome) in enumerate(zip(winners, prices, first_prices, second_prices, outcomes)):
             for agent_id, agent in enumerate(participating_agents):

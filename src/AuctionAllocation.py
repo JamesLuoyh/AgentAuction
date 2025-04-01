@@ -15,7 +15,7 @@ class FirstPrice(AllocationMechanism):
     def __init__(self):
         super(FirstPrice, self).__init__()
 
-    def allocate(self, bids, num_slots):
+    def allocate(self, bids, num_slots, win_counts):
         winners = np.argsort(-bids)[:num_slots]
         sorted_bids = -np.sort(-bids)
         prices = sorted_bids[:num_slots]
@@ -29,7 +29,7 @@ class SecondPrice(AllocationMechanism):
     def __init__(self):
         super(SecondPrice, self).__init__()
 
-    def allocate(self, bids, num_slots):
+    def allocate(self, bids, num_slots, win_counts):
         winners = np.argsort(-bids)[:num_slots]
         sorted_bids = -np.sort(-bids)
         first_prices = sorted_bids[:num_slots]
@@ -42,12 +42,23 @@ class MixedPrice(AllocationMechanism):
 
     def __init__(self):
         super(MixedPrice, self).__init__()
-        self.fp_rate = 0.0
+        self.mix_rate = 0.0
 
-    def allocate(self, bids, num_slots):
-        winners = np.argsort(-bids)[:num_slots]
+    def allocate(self, bids, num_slots, win_counts):
+        cumulative_advantage = win_counts#win_counts #np.exp(win_counts - np.average(win_counts))
+        avg_bid = np.average(bids)
+        p_bid = np.exp(bids-avg_bid)/np.sum(np.exp(bids-avg_bid))  #(bids + 1) / np.sum(bids + 1)
+        p_cum = (cumulative_advantage + 1)/(np.sum(cumulative_advantage + 1))
+        # print(cumulative_advantage)
+        p=(p_bid * p_cum)/np.sum(p_bid * p_cum)
+        winners = np.random.choice(len(bids), num_slots, p=p)
+        
+        # winners = np.argsort(-bids)[:num_slots]
+        print(p)
+        print(winners)
+        print("win_counts", win_counts)
         sorted_bids = -np.sort(-bids)
         first_prices = sorted_bids[:num_slots]
         second_prices = sorted_bids[1:num_slots+1]
-        price = (self.fp_rate*first_prices + (1-self.fp_rate)*second_prices)
+        price = bids[winners]#((1-self.mix_rate)*first_prices + self.mix_rate*second_prices)
         return winners, price, first_prices, second_prices

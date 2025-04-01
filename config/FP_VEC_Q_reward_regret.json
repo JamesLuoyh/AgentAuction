@@ -1,7 +1,7 @@
 {
-    "random_seed": 1,
+    "random_seed": 2,
     "num_runs": 1,
-    "num_iter" : 10000,
+    "num_iter" : 100000,
     "rounds_per_iter": 1,
     "num_participants_per_round": 2,
     "embedding_size": 1,
@@ -10,7 +10,7 @@
     "avg_over": 100,
     "allocation": "FirstPrice",
     "agents": [ {
-      "name": "Vector Q Learnt",
+      "name": "Vector Q Regret Learnt",
       "num_copies": 1,
       "num_items": 1,
       "value": 20,
@@ -19,7 +19,7 @@
           "kwargs": {}
         },
         "bidder": {
-          "type": "VectorQBidder",
+          "type": "VectorQRegretBidder",
           "kwargs": {
                 "value": 20,
                 "epsilon": 0.25,
@@ -30,7 +30,7 @@
         }
       },
       {
-        "name": "Hueristics",
+        "name": "Vector Q Reward Learnt",
         "num_copies": 1,
         "num_items": 1,
         "value": 20,
@@ -39,13 +39,16 @@
             "kwargs": {}
           },
           "bidder": {
-            "type": "HeuristicBidder",
+            "type": "VectorQBidder",
             "kwargs": {
-                  "value": 20
+                  "value": 20,
+                  "epsilon": 0.25,
+                  "decay": 0.00002,
+                  "alpha": 0.05,
+                  "gamma": 0.99
               }
           }
         }
     ],
-    "output_dir": "results/FP_Vector_Q_Hueristics_Fixed_value_20/"
+    "output_dir": "results/FP_2_Vector_Q_value_20_reward_regret/"
   }
-  

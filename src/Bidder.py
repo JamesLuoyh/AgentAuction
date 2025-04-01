@@ -21,8 +21,88 @@ class Bidder:
     def update(self, contexts, values, bids, prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
         pass
 
+    def override_params(self, config):
+        for key, value in config.items():
+            setattr(self, key, value)
+
     def clear_logs(self, memory):
         pass
+    
+
+class NoSwapRegretBidder(Bidder):
+    """A No swap regret bidder employing the Multiplication Weight Update (MWU)"""
+    def __init__(self, rng, value):
+        super(NoSwapRegretBidder, self).__init__(rng)
+        self.truthful = True
+        self.weights = np.ones([value + 1, value + 1])
+        self.p = np.ones(value + 1) / (value + 1)
+        self.q = None
+        self.action = 5
+        self.value = value
+        self.epsilon = 0.01
+    
+    def bid(self, value, context, estimated_CTR=1):
+        assert(estimated_CTR == 1)
+        
+        # print(coin_flip, self.epsilon, self.action)
+        self.q = self.weights/np.sum(self.weights, axis=1)
+        self.p_prev = self.p
+        self.p = np.dot(self.p, self.q)
+        
+        self.p = self.p / np.sum(self.p)
+        # print(self.p)
+        self.action = int(np.random.choice(self.value+1, 1, p=self.p))#) int(np.random.normal(self.value-2, 1, 1))
+        self.argmax = np.argmax(self.p)
+        return self.action
+    
+    def update(self, contexts, values, bids, prices, first_prices, second_prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
+        cost = values[-1] - outcomes[-1] * (values[-1] - prices[-1])/self.value
+        # if outcomes[-1] == 0:
+        #     # Underbid regret
+        #     # regret = 0#- (self.value - prices[-1])
+        #     regret = max((self.value - first_prices[-1]), 0)
+        # else:
+        #     # Overbid regret
+        #     regret = max((prices[-1] - second_prices[-1]), 0)
+        # cost = regret/self.value
+        # print(np.sum(self.p_prev * self.q[:, self.action] * 1 / self.p[self.action]))
+        # print("*"*50)
+        self.weights[:, self.action] *= (1 - self.epsilon) ** (self.p_prev * self.q[:, self.action] * cost / self.p[self.action])
+        return
+
+class NoRegretBidder(Bidder):
+    """ A No regret bidder employing the Multiplication Weight Update (MWU)"""
+    def __init__(self, rng, value):
+        super(NoRegretBidder, self).__init__(rng)
+        self.truthful = True
+        # assume value is 100 for the naive example
+        # the bid is integer
+        self.value = value
+        self.action = 10
+        self.weights = np.ones(value + 1)
+        self.epsilon = 0.01
+
+    def bid(self, value, context, estimated_CTR=1):
+        assert(estimated_CTR == 1)
+        
+        # print(coin_flip, self.epsilon, self.action)
+        self.action = int(np.random.choice(self.value+1, 1, p=self.weights/np.sum(self.weights)))#) int(np.random.normal(self.value-2, 1, 1))
+        self.argmax = self.action
+        return self.action
+    
+    def update(self, contexts, values, bids, prices, first_prices, second_prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
+        # cost = values[-1] - outcomes[-1] * (values[-1] - prices[-1])
+        if outcomes[-1] == 0:
+            # Underbid regret
+            # regret = 0#- (self.value - prices[-1])
+            regret = max((self.value - first_prices[-1]), 0)
+        else:
+            # Overbid regret
+            regret = max((prices[-1] - second_prices[-1]), 0)
+        cost = regret
+        self.weights[self.action] *= (1 - self.epsilon) ** (cost)
+        # print(self.weights[self.action])
+        return
 
 class NoisyBidder(Bidder):
     """ A bidder that uses Q-learning to bid """
@@ -37,6 +117,8 @@ class NoisyBidder(Bidder):
         self.decay = 0.00002
         
 
+    def conditional_argmax(self):
+        return np.zeros((16,16))
 
 
     def bid(self, value, context, estimated_CTR=1):
@@ -70,12 +152,14 @@ class HeuristicBidder(Bidder):
         # assume value is 100 for the naive example
         # the bid is integer
         self.value = value
-        self.action = 0 # np.random.randint(value)
+        self.action = 7 # np.random.randint(value)
         self.epsilon = 0.3
         self.decay = 0.00002
         
 
-
+   
+    def conditional_argmax(self):
+        return np.zeros((16,16))     
 
     def bid(self, value, context, estimated_CTR=1):
         assert(estimated_CTR == 1)
@@ -124,7 +208,7 @@ class ApproximateQMixedRegretBidder(Bidder):
 
     def state_features(self, state):
         # fourier basis of n degrees
-        state_actions = state/self.value - 0.5
+        state = state/self.action_size
         state_features = np.concatenate([np.cos(i * np.pi * state) for i in range(self.n_basis)], axis=-1)
         # print(state_features)
         return state_features
@@ -202,7 +286,7 @@ class ApproximateQInterpolateBidder(Bidder):
 
     def state_features(self, state):
         # fourier basis of n degrees
-        state_actions = state/self.value - 0.5
+        state = state/self.action_size
         state_features = np.concatenate([np.cos(i * np.pi * state) for i in range(self.n_basis)], axis=-1)
         # print(state_features)
         return state_features
@@ -210,6 +294,14 @@ class ApproximateQInterpolateBidder(Bidder):
     def q_values(self, state, actions):
         # linear approximation
         return np.dot(self.state_features(state), self.theta.T)[actions].squeeze() # [20]
+
+    def conditional_argmax(self):
+        conditional_argmax = np.zeros([self.action_size, self.action_size])
+        for i in range(self.action_size):
+            for j in range(self.action_size):
+                state = np.array([i, max(i,j), min(i,j)])
+                conditional_argmax[i,j] = np.argmax(self.q_values(state, self.all_actions))
+        return conditional_argmax
 
     def bid(self, value, context, estimated_CTR=1):
         coin_flip = np.random.rand(1)
@@ -232,6 +324,8 @@ class ApproximateQInterpolateBidder(Bidder):
     def update(self, contexts, values, bids, prices, first_prices, second_prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
         reward = outcomes[-1] * (values[-1] - prices[-1])
         # print("reward", reward)
+        if first_prices[-1] == second_prices[-1]:
+            reward = np.array([(values[-1] - prices[-1]) / 2], dtype=np.float32)
         if outcomes[-1] == 0:
             # Underbid regret
             # regret = 0#- (self.value - prices[-1])
@@ -249,6 +343,7 @@ class ApproximateQInterpolateBidder(Bidder):
         state_features = self.state_features(self.state) #np.concatenate([], axis=-1)
         self.theta[bids[-1]] += self.alpha * td * state_features
         self.state = next_state
+        # print(self.epsilon)
         self.epsilon *= np.exp(-self.decay) # exploit more and more
  
 
@@ -258,7 +353,7 @@ class ApproximateRegretQBidder(Bidder):
         self.truthful = True
         # Size of the state feature vector
         # including previous bid, previous first price, previous second price, and action
-        self.state_size = 3
+        self.state_size = 1
         self.value = value
         self.action_size = value + 1  # Number of possible actions
         self.alpha = alpha  # Learning rate
@@ -275,7 +370,7 @@ class ApproximateRegretQBidder(Bidder):
 
     def state_features(self, state):
         # fourier basis of n degrees
-        state_actions = state/self.value - 0.5
+        state = state/self.action_size
         state_features = np.concatenate([np.cos(i * np.pi * state) for i in range(self.n_basis)], axis=-1)
         # print(state_features)
         return state_features
@@ -312,8 +407,10 @@ class ApproximateRegretQBidder(Bidder):
         else:
             # Overbid regret
             regret = min(-(prices[-1] - second_prices[-1]), 0)
+        cost = values[-1] - outcomes[-1] * (values[-1] - prices[-1])/self.value
+        regret = -cost
         # regret = 0.25 * reward + 0.75 * regret
-        next_state = np.array([bids[-1], first_prices[-1], second_prices[-1]])#np.array([bids[-1], prices[-1]]) #
+        next_state = np.array([bids[-1]])#, first_prices[-1], second_prices[-1]])#np.array([bids[-1], prices[-1]]) #
         # next_state_expanded = np.repeat(np.expand_dims(next_state,0), self.action_size, axis=0) # [20,3]
         # next_features =  np.concatenate([next_state_expanded, self.all_actions], axis = 1) # [20, 4]
         next_q_values = self.q_values(next_state, self.all_actions) # next_q_values = np.dot(next_features, np.expand_dims(self.theta, 1)).squeeze() # [20]
@@ -331,7 +428,7 @@ class ApproximateQBidder(Bidder):
         self.truthful = True
         # Size of the state feature vector
         # including previous bid, previous first price, previous second price, and action
-        self.state_size = 3
+        self.state_size = 1
         self.value = value
         self.action_size = value + 1  # Number of possible actions
         self.alpha = alpha  # Learning rate
@@ -352,7 +449,7 @@ class ApproximateQBidder(Bidder):
 
     def state_features(self, state):
         # fourier basis of n degrees
-        state_actions = state/self.action_size - 0.5
+        state = state/self.action_size
         state_features = np.concatenate([np.cos(i * np.pi * state) for i in range(self.n_basis)], axis=-1)
         # print(state_features)
         return state_features
@@ -390,7 +487,7 @@ class ApproximateQBidder(Bidder):
         # else:
         #     # Overbid regret
         #     regret = -(prices[-1] - second_prices[-1])
-        next_state = np.array([bids[-1], first_prices[-1], second_prices[-1]])
+        next_state = np.array([bids[-1]])
         # next_state = np.array([bids[-1], prices[-1]])
         # next_state = np.array([bids[-1]])
         # next_state_expanded = np.repeat(np.expand_dims(next_state,0), self.action_size, axis=0) # [20,3]
@@ -512,27 +609,107 @@ class VectorQBidder(Bidder):
         self.epsilon *= np.exp(-self.decay) # exploit more and more
 
 
-class TabularQObserveBothBidder(Bidder):
+class TitForTatBidder(Bidder):
+    def __init__(self, rng, value):
+        super(TitForTatBidder, self).__init__(rng)
+        self.truthful = True
+        self.action_size = value + 1
+        self._argmax = np.zeros([self.action_size, self.action_size])
+        for i in range(self.action_size):
+            self._argmax [:,i] = i
+        self.prev_oppo_bid = 4
+        # Size of the state feature vector
+        # including previous bid, previous first price, previous second price, and action
+        
+        
+    def conditional_argmax(self):
+        return self._argmax #np.reshape(np.argmax(self.q_table, axis=1), (self.action_size, self.action_size))
+
+    def bid(self, value, context, estimated_CTR=1):
+        self.action = self.prev_oppo_bid
+        # print(coin_flip, self.epsilon, self.action)
+        self.argmax = self.action
+        return self.action
+
+
+    def update(self, contexts, values, bids, prices, first_prices, second_prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
+        # if outcomes[-1] == 0:
+        #     # Underbid regret
+        #     reward = min(- (self.value - prices[-1]),0)
+        #     # regret = - prices[-1]
+        #     # print("regret", regret)
+        # else:
+        #     # Overbid regret
+        #     reward = min(-(prices[-1] - second_prices[-1]),0)
+        others_bid = (1 - outcomes[-1]) * first_prices[-1] + outcomes[-1] * second_prices[-1]
+        self.prev_oppo_bid = others_bid
+
+class FixPolicyBidder(Bidder):
+    def __init__(self, rng):
+        super(FixPolicyBidder, self).__init__(rng)
+        self.truthful = True
+        # Size of the state feature vector
+        # including previous bid, previous first price, previous second price, and action
+        self.q_table = np.array([[3,4,3,5,3,4,6,2,3,9]
+            ,[4,4,5,5,3,3,4,2,2,1]
+            ,[4,5,3,3,5,4,5,4,1,4]
+            ,[5,3,1,5,0,1,0,4,1,4]
+            ,[2,4,5,3,3,4,5,1,1,2]
+            ,[0,5,5,1,5,5,0,7,3,4]
+            ,[3,2,5,1,5,2,1,1,4,4]
+            ,[1,2,8,3,3,3,5,7,5,1]
+            ,[0,4,1,1,4,6,4,2,2,4]
+            ,[0,0,1,7,5,3,3,0,0,2]])
+        self.state = [5,4]
+        
+    def conditional_argmax(self):
+        return self.q_table#np.reshape(np.argmax(self.q_table, axis=1), (self.action_size, self.action_size))
+
+    def bid(self, value, context, estimated_CTR=1):
+        self.action = self.q_table[int(self.state[0]), int(self.state[1])]
+        # print(coin_flip, self.epsilon, self.action)
+        self.argmax = self.action
+        return self.action
+
+
+    def update(self, contexts, values, bids, prices, first_prices, second_prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
+        # if outcomes[-1] == 0:
+        #     # Underbid regret
+        #     reward = min(- (self.value - prices[-1]),0)
+        #     # regret = - prices[-1]
+        #     # print("regret", regret)
+        # else:
+        #     # Overbid regret
+        #     reward = min(-(prices[-1] - second_prices[-1]),0)
+        others_bid = (1 - outcomes[-1]) * first_prices[-1] + outcomes[-1] * second_prices[-1]
+        next_state =  np.array([bids[-1], others_bid])
+
+        self.state = next_state
+
+class TabularQPricingBidder(Bidder):
     def __init__(self, rng, value, epsilon, decay, alpha, gamma):
-        super(TabularQObserveBothBidder, self).__init__(rng)
+        super(TabularQPricingBidder, self).__init__(rng)
         self.truthful = True
         # Size of the state feature vector
         # including previous bid, previous first price, previous second price, and action
         self.value = value
-        self.action_size = value  # Number of possible actions
+        self.action_size = value+1  # Number of possible actions
         self.alpha = alpha  # Learning rate
         self.gamma = gamma  # Discount factor
         self.epsilon = epsilon  # Epsilon-greedy parameter for exploration
         self.decay = decay # epsilon decay
-        self.action = 10
-        self.q_table = np.zeros((self.value*self.value, self.value), dtype=float)#
+        self.action = 5
+        self.q_table = -0.6 + np.zeros(((self.value+1)*(self.value+1), self.value + 1), dtype=float)#
         self.all_actions = np.expand_dims(np.arange(self.action_size), 1)
         self.state = np.zeros(2)
+        self.mu = 0.25
+        self.a = 2
+        self.a0 = 0
 
 
     def state_features(self, state):
         # fourier basis of n degrees
-        state_features = int(state[0]* self.value + state[1])
+        state_features = int(state[0]* self.action_size + state[1]) #
         # print(state_features)
         return state_features
 
@@ -540,11 +717,14 @@ class TabularQObserveBothBidder(Bidder):
         # linear approximation
         return self.q_table[self.state_features(state), actions].flatten()
 
+    def conditional_argmax(self):
+        return np.reshape(np.argmax(self.q_table, axis=1), (self.action_size, self.action_size))
+
     def bid(self, value, context, estimated_CTR=1):
         coin_flip = np.random.rand(1)
         q_values = self.q_values(self.state, self.all_actions)
         # print(q_values)
-        self.argmax = np.random.choice(np.where(q_values > np.max(q_values) - 0.01)[0])
+        self.argmax = np.argmax(q_values)# np.random.choice(np.where(q_values > np.max(q_values) - 0.01)[0])
         # np.argmax(q_values)#
         if coin_flip >= self.epsilon:
             # exploit
@@ -556,8 +736,103 @@ class TabularQObserveBothBidder(Bidder):
         # print(coin_flip, self.epsilon, self.action)
         return self.action
 
+    def demand(self, p):
+        """Computes demand"""
+        e = np.exp((self.a - p) / self.mu)
+        d = e / (np.sum(e) + np.exp(self.a0 / self.mu))
+        return d
+
+    def convert_prices(self, state):
+        pmax = 2.0
+        pmin = 1.5
+        return state * ((pmax-pmin)/self.action_size) + pmin
+
+    def update(self, contexts, values, bids, prices, first_prices, second_prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
+        # if outcomes[-1] == 0:
+        #     # Underbid regret
+        #     reward = min(- (self.value - prices[-1]),0)
+        #     # regret = - prices[-1]
+        #     # print("regret", regret)
+        # else:
+        #     # Overbid regret
+        #     reward = min(-(prices[-1] - second_prices[-1]),0)
+        others_bid = (1 - outcomes[-1]) * first_prices[-1] + outcomes[-1] * second_prices[-1]
+        next_state =  np.array([bids[-1], others_bid])
+        converted_prices = self.convert_prices(next_state)
+        d = self.demand(converted_prices)
+        pi = (converted_prices - 1) * d
+        reward = pi[0]
+        # regret = 0
+        # for i in range(self.action_size):
+        #     next_state =  np.array([i, others_bid])
+        #     converted_prices = self.convert_prices(next_state)
+        #     d = self.demand(converted_prices)
+        #     pi = (converted_prices - 1) * d
+        #     conterfactual_reward = pi[0]
+        #     regret = max(regret, conterfactual_reward - reward)
+        # reward = -regret
+        # next_state =  np.array([bids[-1], others_bid])#np.array([bids[-1], prices[-1]]) #
+        next_q_values = self.q_values(next_state, self.all_actions) # next_q_values = np.dot(next_features, np.expand_dims(self.theta, 1)).squeeze() # [20]
+        target = reward + self.gamma * np.max(next_q_values)
+        td = target - self.q
+        state_features = self.state_features(self.state) #np.concatenate([], axis=-1)
+        self.q_table[state_features, bids[-1]] += self.alpha * td
+        self.state = next_state
+        self.epsilon *= np.exp(-self.decay) # exploit more and more
+        
+
+
+class TabularQObserveBothBidder(Bidder):
+    def __init__(self, rng, value, epsilon, decay, alpha, gamma):
+        super(TabularQObserveBothBidder, self).__init__(rng)
+        self.truthful = True
+        # Size of the state feature vector
+        # including previous bid, previous first price, previous second price, and action
+        self.value = value
+        self.action_size = 16#value + 1  # Number of possible actions
+        self.alpha = alpha  # Learning rate
+        self.gamma = gamma  # Discount factor
+        self.epsilon = epsilon  # Epsilon-greedy parameter for exploration
+        self.decay = decay # epsilon decay
+        self.action = 5
+        self.q_table = np.zeros((self.action_size*self.action_size, self.action_size), dtype=float)#
+        self.all_actions = np.expand_dims(np.arange(self.action_size), 1)
+        self.state = np.zeros(2)
+
+
+    def state_features(self, state):
+        # fourier basis of n degrees
+        state_features = int(state[0]* self.action_size + state[1]) #
+        # print(state_features)
+        return state_features
+
+    def q_values(self, state, actions):
+        # linear approximation
+        return self.q_table[self.state_features(state), actions].flatten()
+
+    def conditional_argmax(self):
+        return np.reshape(np.argmax(self.q_table, axis=1), (self.action_size, self.action_size))
+
+    def bid(self, value, context, estimated_CTR=1):
+        coin_flip = np.random.rand(1)
+        q_values = self.q_values(self.state, self.all_actions)
+        # print(q_values)
+        self.argmax = np.argmax(q_values)# np.random.choice(np.where(q_values > np.max(q_values) - 0.01)[0])
+        # np.argmax(q_values)#
+        if coin_flip >= self.epsilon:
+            # exploit
+            self.action = self.argmax
+        else:
+            # explore
+            self.action = np.random.randint(self.value + 1)
+        self.q = q_values[self.action]
+        # print(coin_flip, self.epsilon, self.action)
+        return self.action
+
     def update(self, contexts, values, bids, prices, first_prices, second_prices, outcomes, estimated_CTRs, won_mask, iteration, plot, figsize, fontsize, name):
         reward = outcomes[-1] * (values[-1] - prices[-1])
+        # if first_prices[-1] == second_prices[-1]:
+        #     reward = (values[-1] - prices[-1]) / 2
         # if outcomes[-1] == 0:
         #     # Underbid regret
         #     reward = min(- (self.value - prices[-1]),0)

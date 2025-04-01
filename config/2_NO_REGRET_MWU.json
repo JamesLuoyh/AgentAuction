@@ -1,16 +1,16 @@
 {
-    "random_seed": 2,
+    "random_seed": 5,
     "num_runs": 1,
-    "num_iter" : 100000,
+    "num_iter" : 50000,
     "rounds_per_iter": 1,
     "num_participants_per_round": 2,
     "embedding_size": 1,
     "embedding_var": 1.0,
     "obs_embedding_size": 4,
-    "avg_over": 100,
+    "avg_over": 500,
     "allocation": "FirstPrice",
     "agents": [ {
-      "name": "Vector Q Learnt",
+      "name": "No Regret Learnt",
       "num_copies": 2,
       "num_items": 1,
       "value": 10,
@@ -19,16 +19,13 @@
           "kwargs": {}
         },
         "bidder": {
-          "type": "VectorQBidder",
+          "type": "NoRegretBidder",
           "kwargs": {
-                "value": 10,
-                "epsilon": 0.25,
-                "decay": 0.00002,
-                "alpha": 0.05,
-                "gamma": 0.4
+                "value": 10
             }
         }
       }
     ],
-    "output_dir": "results/FP_2_Vector_Q_value_10_discount_0.4/"
-}
+    "output_dir": "results/FP_2_No_regret_value_10_reveal_all/"
+  }
+  

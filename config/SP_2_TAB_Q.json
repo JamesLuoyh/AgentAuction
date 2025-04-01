@@ -1,7 +1,7 @@
 {
-    "random_seed": 2,
+    "random_seed": 1,
     "num_runs": 1,
-    "num_iter" : 100000,
+    "num_iter" : 500000,
     "rounds_per_iter": 1,
     "num_participants_per_round": 2,
     "embedding_size": 1,
@@ -10,7 +10,7 @@
     "avg_over": 100,
     "allocation": "FirstPrice",
     "agents": [ {
-      "name": "Vector Q Learnt",
+      "name": "Tabular Q Learnt",
       "num_copies": 2,
       "num_items": 1,
       "value": 10,
@@ -19,16 +19,17 @@
           "kwargs": {}
         },
         "bidder": {
-          "type": "VectorQBidder",
+          "type": "TabularQObserveBothBidder",
           "kwargs": {
                 "value": 10,
                 "epsilon": 0.25,
                 "decay": 0.00002,
                 "alpha": 0.05,
-                "gamma": 0.4
+                "gamma": 0.99
             }
         }
       }
     ],
-    "output_dir": "results/FP_2_Vector_Q_value_10_discount_0.4/"
-}
+    "output_dir": "results/FP_2_Tabular_Q_value_10_reveal_all/"
+  }
+  

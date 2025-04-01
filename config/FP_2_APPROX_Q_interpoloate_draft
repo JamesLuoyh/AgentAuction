@@ -1,0 +1,4 @@
+,
+        "bidder_params_override": {
+          "epsilon": 0.0005
+        }

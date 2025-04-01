@@ -1,14 +1,13 @@
 {
-    "random_seed": 200,
+    "random_seed": 700,
     "num_runs": 1,
-    "num_iter" : 10000000,
+    "num_iter" : 500000,
     "rounds_per_iter": 1,
     "num_participants_per_round": 2,
     "embedding_size": 1,
     "embedding_var": 1.0,
     "obs_embedding_size": 4,
-    "plot_last_iter": 100000,
-    "avg_over": 1000,
+    "avg_over": 500,
     "allocation": "FirstPrice",
     "agents": [ {
       "name": "Approx Q 0.0 Regret Learnt",
@@ -22,14 +21,13 @@
           "kwargs": {}
         },
         "bidder": {
-          "type": "ApproximateQInterpolateBidder",
+          "type": "TabularQObserveBothBidder",
           "kwargs": {
                 "value": 15,
-                "epsilon": 0.25,
+                "epsilon": 0.9,
                 "decay": 0.00002,
                 "alpha": 0.1,
-                "gamma": 0.99,
-                "beta": 0.0
+                "gamma": 0.95
             }
         }
       },
@@ -40,22 +38,21 @@
         "num_copies": 1,
         "num_items": 1,
         "value": 15,
-        "allocator": {
-          "type": "FixedAllocator",
-          "kwargs": {}
-        },
-        "bidder": {
-          "type": "ApproximateQInterpolateBidder",
-          "kwargs": {
-                "value": 15,
-                "epsilon": 0.25,
-                "decay": 0.00002,
-                "alpha": 0.1,
-                "gamma": 0.99,
-                "beta": 0.0
-            }
+          "allocator": {
+            "type": "FixedAllocator",
+            "kwargs": {}
+          },
+          "bidder": {
+            "type": "TabularQObserveBothBidder",
+            "kwargs": {
+                  "value": 15,
+                  "epsilon": 0.9,
+                  "decay": 0.00002,
+                  "alpha": 0.1,
+                  "gamma": 0.95
+              }
+          }
         }
-      }
     ],
-    "output_dir": "result/stage_1_basis_3_value_15_seed_200_sym_smooth_alloc"
-  }
+    "output_dir": "draft/epsilon_0.9_alpha_0.1"
+}

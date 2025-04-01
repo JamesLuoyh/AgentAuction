@@ -8,7 +8,6 @@
   "embedding_var": 1.0,
   "obs_embedding_size": 4,
   "avg_over": 100,
-  "plot_last_iter": 1000,
   "allocation": "SecondPrice",
   "agents": [ {
     "name": "Vector Q Learnt",
@@ -20,7 +19,7 @@
         "kwargs": {}
       },
       "bidder": {
-        "type": "VectorQBidder",
+        "type": "VectorQRegretBidder",
         "kwargs": {
               "value": 20,
               "epsilon": 0.25,
@@ -31,5 +30,5 @@
       }
     }
   ],
-  "output_dir": "results/SP_2_Vector_Q_value_20_testing/"
+  "output_dir": "results/SP_2_Vector_Q_value_20_regret/"
 }

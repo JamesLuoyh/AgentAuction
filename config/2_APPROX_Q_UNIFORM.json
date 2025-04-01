@@ -27,7 +27,7 @@
             }
       },
       {
-        "name": "Approx Q 0.5 Regret Learnt",
+        "name": "Approx Q 1.0 Regret Learnt",
         "num_copies": 1,
         "num_items": 1,
         "value": 20,
@@ -43,10 +43,10 @@
                   "decay": 0.00002,
                   "alpha": 0.05,
                   "gamma": 0.99,
-                  "beta": 0.5
+                  "beta": 1.0
               }
           }
         }
     ],
-    "output_dir": "final/0.0_MP_APPROX_Q_Uniform_value_20_interpolate_0.5_reveal_all/"
+    "output_dir": "final/1.0_MP_APPROX_Q_Uniform_value_20_interpolate_1.0_reveal_all/"
   }

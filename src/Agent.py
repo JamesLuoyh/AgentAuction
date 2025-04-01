@@ -27,6 +27,10 @@ class Agent:
         self.memory = memory
         self.total_bid = .0 # TODO: Instead of sum, can return a list for evaluating the mean and variance
         self.argmax = 0.0
+
+    def action_size(self):
+        return self.bidder.action_size
+
     def select_item(self, context):
         # Estimate CTR for all items
         estim_CTRs = self.allocator.estimate_CTR(context)
@@ -127,6 +131,9 @@ class Agent:
         # Important to mention that this assumes a first-price auction! i.e. the price is the winning bid
         return np.sum(list((opp.value - opp.first_price) * (not opp.won) for opp in self.logs))
 
+
+    def get_conditional_argmax(self):
+        return self.bidder.conditional_argmax()
 
     def get_CTR_RMSE(self):
         return np.sqrt(np.mean(list((opp.true_CTR - opp.estimated_CTR)**2 for opp in self.logs)))

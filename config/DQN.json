@@ -1,51 +1,50 @@
 {
-    "random_seed": 1,
+    "random_seed": 700,
     "num_runs": 1,
-    "num_iter" : 10000,
+    "num_iter" : 1000000,
     "rounds_per_iter": 1,
     "num_participants_per_round": 2,
     "embedding_size": 1,
     "embedding_var": 1.0,
     "obs_embedding_size": 4,
-    "avg_over": 100,
+    "avg_over": 1000,
     "allocation": "FirstPrice",
     "agents": [ {
-      "name": "Vector Q Learnt",
+      "name": "DQN Learnt",
+      "pretrained_path": "",
+      "save_policy": true,
       "num_copies": 1,
       "num_items": 1,
-      "value": 20,
+      "value": 15,
         "allocator": {
           "type": "FixedAllocator",
           "kwargs": {}
         },
         "bidder": {
-          "type": "VectorQBidder",
+          "type": "DQNBidder",
           "kwargs": {
-                "value": 20,
-                "epsilon": 0.25,
-                "decay": 0.00002,
-                "alpha": 0.05,
-                "gamma": 0.99
+                "value": 15
             }
         }
       },
       {
-        "name": "Hueristics",
+        "name": "DQN Learnt",
+        "pretrained_path": "",
+        "save_policy": true,
         "num_copies": 1,
         "num_items": 1,
-        "value": 20,
+        "value": 15,
           "allocator": {
             "type": "FixedAllocator",
             "kwargs": {}
           },
           "bidder": {
-            "type": "HeuristicBidder",
+            "type": "DQNBidder",
             "kwargs": {
-                  "value": 20
+                  "value": 15
               }
           }
         }
     ],
-    "output_dir": "results/FP_Vector_Q_Hueristics_Fixed_value_20/"
-  }
-  
+    "output_dir": "draft/DQN_auction_15_low_esp_lr1e-3_hidden_64_update_every_1_no_replay_1000000"
+}

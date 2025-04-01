@@ -1,17 +1,17 @@
 {
-    "random_seed": 1,
-    "num_runs": 1,
-    "num_iter" : 10000,
+    "random_seed": 5,
+    "num_runs": 2,
+    "num_iter" : 500000,
     "rounds_per_iter": 1,
-    "num_participants_per_round": 2,
+    "num_participants_per_round": 3,
     "embedding_size": 1,
     "embedding_var": 1.0,
     "obs_embedding_size": 4,
     "avg_over": 100,
-    "allocation": "FirstPrice",
+    "allocation": "SecondPrice",
     "agents": [ {
-      "name": "Vector Q Learnt",
-      "num_copies": 1,
+      "name": "Approx Q Learnt",
+      "num_copies": 2,
       "num_items": 1,
       "value": 20,
         "allocator": {
@@ -19,7 +19,7 @@
           "kwargs": {}
         },
         "bidder": {
-          "type": "VectorQBidder",
+          "type": "ApproximateQBidder",
           "kwargs": {
                 "value": 20,
                 "epsilon": 0.25,
@@ -30,7 +30,7 @@
         }
       },
       {
-        "name": "Hueristics",
+        "name": "Approx Q 0.5 Regret Learnt",
         "num_copies": 1,
         "num_items": 1,
         "value": 20,
@@ -39,13 +39,17 @@
             "kwargs": {}
           },
           "bidder": {
-            "type": "HeuristicBidder",
+            "type": "ApproximateQInterpolateBidder",
             "kwargs": {
-                  "value": 20
+                  "value": 20,
+                  "epsilon": 0.25,
+                  "decay": 0.00002,
+                  "alpha": 0.05,
+                  "gamma": 0.99,
+                  "reward": 1.0
               }
           }
         }
     ],
-    "output_dir": "results/FP_Vector_Q_Hueristics_Fixed_value_20/"
+    "output_dir": "final/SP_APPROX_Q_2_reward_1_0.5regret_value_20/"
   }
-  
